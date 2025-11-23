@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+
+{% block header %}
+<div class="flex items-center space-x-4">
+    <a href="/" class="text-industrial-400 hover:text-white font-bold">{{ semester.name }}</a>
+    <div class="h-6 w-px bg-industrial-700"></div>
+    <div class="flex space-x-2">
+        {% for c in courses %}
+        <a href="/courses/{{ c.id }}"
+            class="px-3 py-1 rounded text-sm font-medium bg-industrial-800 text-industrial-300 hover:text-white hover:bg-industrial-700 transition-colors">
+            {{ c.code }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-industrial-100">{{ semester.name }}</h1>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Add Course Form -->
+    <div class="glass-panel p-6 rounded-lg md:col-span-1">
+        <h2 class="text-lg font-bold mb-4 text-industrial-100 uppercase tracking-wide">添加课程</h2>
+        <form hx-post="/semesters/{{ semester.id }}/courses" hx-target="#course-list" hx-swap="beforeend"
+            class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">课程代码</label>
+                <input type="text" name="code" placeholder="例如：CS162" class="input-field rounded" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">课程名称</label>
+                <input type="text" name="title" placeholder="例如：Operating Systems" class="input-field rounded" required>
+            </div>
+            <button type="submit" class="btn-primary w-full rounded uppercase tracking-wider text-sm font-bold">
+                添加</button>
+        </form>
+    </div>
+
+    <!-- Course List -->
+    <div class="glass-panel p-6 rounded-lg md:col-span-2">
+        <h2 class="text-lg font-bold mb-4 text-industrial-100 uppercase tracking-wide">课程</h2>
+        <div id="course-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {% for course in courses %}
+            {% include "partials/course_card.html" %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-10 glass-panel p-6 rounded-lg">
+    <h2 class="text-2xl font-bold mb-6 text-center">登录</h2>
+    <form action="/login" method="post" class="space-y-4">
+        <div>
+            <label for="username" class="block text-sm font-medium text-industrial-300">用户名</label>
+            <input type="text" name="username" id="username" required class="input-field mt-1 rounded-md">
+        </div>
+        <div>
+            <label for="password" class="block text-sm font-medium text-industrial-300">密码</label>
+            <input type="password" name="password" id="password" required class="input-field mt-1 rounded-md">
+        </div>
+        <div>
+            <button type="submit" class="btn-primary w-full rounded-md">登录</button>
+        </div>
+    </form>
+    <div class="mt-4 text-center text-sm">
+        <a href="/register" class="text-industrial-400 hover:text-white">注册账号</a>
+    </div>
+</div>
+{% endblock %}
+

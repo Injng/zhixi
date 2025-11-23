@@ -1,0 +1,73 @@
+use rocket::serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct Semester {
+    pub id: i64,
+    pub name: String,
+    pub created_at: String, // Simplified for now, can use chrono if needed
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct Course {
+    pub id: i64,
+    pub semester_id: i64,
+    pub code: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct LogItem {
+    pub id: i64,
+    pub course_id: i64,
+    pub kind: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub link: Option<String>,
+    pub date: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct Category {
+    pub id: i64,
+    pub course_id: i64,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct Problem {
+    pub id: i64,
+    pub log_item_id: i64,
+    pub description: String,
+    pub notes: Option<String>,
+    pub image_url: Option<String>,
+    pub solution_link: Option<String>,
+}
+
+// Helper struct for joining problems with their categories
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct ProblemWithCategories {
+    pub id: i64,
+    pub log_item_id: i64,
+    pub description: String,
+    pub notes: Option<String>,
+    pub image_url: Option<String>,
+    pub solution_link: Option<String>,
+    pub category_names: Option<String>, // Comma separated list from group_concat
+    pub source_kind: String, // From joined log_item
+    pub source_title: String, // From joined log_item
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
+pub struct User {
+    pub id: i64,
+    pub username: String,
+    pub password_hash: String,
+}

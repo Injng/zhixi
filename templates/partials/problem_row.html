@@ -1,0 +1,41 @@
+<div class="problem-card bg-industrial-900/50 p-3 rounded border border-industrial-800 relative group">
+    <button hx-get="/problems/{{ problem.id }}/edit" hx-target="closest .problem-card" hx-swap="outerHTML"
+        class="absolute top-2 right-2 text-industrial-600 hover:text-industrial-300 transition-colors opacity-0 group-hover:opacity-100">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        </svg>
+    </button>
+
+    <div class="flex flex-col gap-2">
+        {% if let Some(url) = problem.image_url %}
+        <div class="w-full">
+            <img src="{{ url }}" alt="Problem Screenshot"
+                class="rounded border border-industrial-700 max-h-48 object-contain">
+        </div>
+        {% endif %}
+
+        <div class="flex justify-between items-start">
+            <div class="flex-1 pr-6">
+                {% if let Some(notes) = problem.notes %}
+                <p class="text-sm text-industrial-300 whitespace-pre-wrap">{{ notes }}</p>
+                {% endif %}
+
+                {% if let Some(link) = problem.solution_link %}
+                {% if !link.is_empty() %}
+                <a href="{{ link }}" target="_blank"
+                    class="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block">查看解答 &rarr;</a>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            {% if let Some(cats) = problem.category_names %}
+            <div class="flex gap-1 flex-wrap justify-end ml-2 max-w-[40%]">
+                {% for cat in cats.split(',') %}
+                <span class="text-[10px] px-1.5 py-0.5 bg-industrial-700 text-industrial-300 rounded">{{ cat }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

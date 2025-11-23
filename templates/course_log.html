@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+
+{% block header %}
+<div class="flex items-center space-x-4">
+    <a href="/semesters/{{ course.semester_id }}" class="text-industrial-400 hover:text-white font-bold">{{
+        semester.name }}</a>
+    <div class="h-6 w-px bg-industrial-700"></div>
+    <div class="flex space-x-2">
+        {% for c in courses %}
+        <a href="/courses/{{ c.id }}"
+            class="px-3 py-1 rounded text-sm font-medium transition-colors {% if c.id == course.id %}bg-industrial-600 text-white border border-industrial-500{% else %}bg-industrial-800 text-industrial-300 hover:text-white hover:bg-industrial-700{% endif %}">
+            {{ c.code }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex items-center justify-between mb-2">
+        <h1 class="text-3xl font-bold text-industrial-100">{{ course.code }} <span
+                class="text-industrial-500 text-xl font-normal">/ {{ course.title }}</span></h1>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex space-x-1 border-b border-industrial-700">
+        <a href="/courses/{{ course.id }}"
+            class="px-4 py-2 text-sm font-medium text-white border-b-2 border-industrial-400">记录</a>
+        <a href="/courses/{{ course.id }}/study"
+            class="px-4 py-2 text-sm font-medium text-industrial-400 hover:text-white hover:border-industrial-600 transition-colors">错题本</a>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Add Log Item Form -->
+    <div class="glass-panel p-6 rounded-lg lg:col-span-1 h-fit sticky top-24">
+        <h2 class="text-lg font-bold mb-4 text-industrial-100 uppercase tracking-wide">添加记录</h2>
+        <form hx-post="/courses/{{ course.id }}/logs" hx-target="#log-list" hx-swap="afterbegin" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">类型</label>
+                <select name="kind" class="input-field rounded" required>
+                    <option value="Lecture">讲座</option>
+                    <option value="Discussion">讨论</option>
+                    <option value="Lab">实验</option>
+                    <option value="Homework">作业</option>
+                    <option value="Midterm">期中</option>
+                    <option value="Quiz">测验</option>
+                    <option value="Other">其他</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">标题</label>
+                <input type="text" name="title" placeholder="例如：Lecture 1: Intro" class="input-field rounded"
+                    required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">日期</label>
+                <input type="date" name="date" class="input-field rounded">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">链接 (可选)</label>
+                <input type="url" name="link" placeholder="https://..." class="input-field rounded">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">描述</label>
+                <textarea name="description" rows="3" class="input-field rounded"></textarea>
+            </div>
+            <button type="submit" class="btn-primary w-full rounded uppercase tracking-wider text-sm font-bold">添加</button>
+        </form>
+    </div>
+
+    <!-- Log Stream -->
+    <div class="lg:col-span-2">
+        <div id="log-list" class="space-y-6">
+            {% for item in log_items %}
+            {% include "partials/log_item.html" %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Add Semester Form -->
+    <div class="glass-panel p-6 rounded-lg">
+        <h2 class="text-lg font-bold mb-4 text-industrial-100 uppercase tracking-wide">添加学期</h2>
+        <form hx-post="/semesters" hx-target="#semester-list" hx-swap="beforeend" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">学期名称</label>
+                <input type="text" name="name" placeholder="例如：FA25" class="input-field rounded" required>
+            </div>
+            <button type="submit" class="btn-primary w-full rounded uppercase tracking-wider text-sm font-bold">添加</button>
+        </form>
+    </div>
+
+    <!-- Semester List -->
+    <div class="glass-panel p-6 rounded-lg">
+        <h2 class="text-lg font-bold mb-4 text-industrial-100 uppercase tracking-wide">学期</h2>
+        <div id="semester-list" class="space-y-2">
+            {% for semester in semesters %}
+            {% include "partials/semester_row.html" %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

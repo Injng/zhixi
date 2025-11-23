@@ -1,0 +1,37 @@
+<div class="bg-industrial-900/50 p-3 rounded border border-industrial-800">
+    <form hx-post="/problems/{{ problem.id }}" hx-target="closest .bg-industrial-900\/50" hx-swap="outerHTML" class="flex flex-col gap-2">
+        {% if let Some(url) = problem.image_url %}
+        <div class="w-full">
+            <img src="{{ url }}" alt="Problem Screenshot"
+                class="rounded border border-industrial-700 max-h-48 object-contain opacity-50">
+        </div>
+        {% endif %}
+
+        <div class="space-y-2">
+            <div>
+                <label class="block text-xs font-medium text-industrial-400 mb-1">笔记</label>
+                <textarea name="notes" rows="2" class="input-field rounded text-sm">{% if let Some(notes) = problem.notes %}{{ notes }}{% endif %}</textarea>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-medium text-industrial-400 mb-1">解答链接</label>
+                <input type="text" name="solution_link" value="{% if let Some(link) = problem.solution_link %}{{ link }}{% endif %}" class="input-field rounded text-sm">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-industrial-400 mb-1">分类</label>
+                <input type="text" name="categories" value="{% if let Some(cats) = problem.category_names %}{{ cats }}{% endif %}" list="categories-{{ problem.log_item_id }}" class="input-field rounded text-sm">
+            </div>
+
+            <div class="flex justify-end space-x-2 mt-2">
+                <button type="button" hx-get="/problems/{{ problem.id }}" hx-target="closest .bg-industrial-900\/50" hx-swap="outerHTML"
+                    class="px-2 py-1 text-xs border border-industrial-600 rounded text-industrial-400 hover:bg-industrial-800">
+                    取消
+                </button>
+                <button type="submit" class="px-2 py-1 text-xs bg-industrial-600 text-white rounded hover:bg-industrial-500">
+                    保存
+                </button>
+            </div>
+        </div>
+    </form>
+</div>

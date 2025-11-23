@@ -1,0 +1,14 @@
+<a href="/courses/{{ course.id }}"
+    class="block p-4 bg-industrial-800/50 border border-industrial-700 hover:border-industrial-500 transition-colors rounded group h-full">
+    <div class="flex flex-col h-full justify-between">
+        <div>
+            <span class="text-xl font-bold text-industrial-100 group-hover:text-white block mb-1">{{ course.code
+                }}</span>
+            <span class="text-sm text-industrial-400">{{ course.title }}</span>
+        </div>
+        <div class="mt-4 text-right">
+            <span class="text-xs text-industrial-500 uppercase tracking-wider group-hover:text-industrial-300">打开记录
+                →</span>
+        </div>
+    </div>
+</a>

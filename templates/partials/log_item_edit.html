@@ -1,0 +1,37 @@
+<div class="glass-panel p-6 rounded-lg border border-industrial-600" hx-target="this" hx-swap="outerHTML">
+    <form hx-post="/logs/{{ item.id }}" class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-industrial-400 mb-1">类型</label>
+            <select name="kind" class="input-field rounded" required>
+                <option value="Lecture" {% if item.kind == "Lecture" %}selected{% endif %}>讲座</option>
+                <option value="Discussion" {% if item.kind == "Discussion" %}selected{% endif %}>讨论</option>
+                <option value="Lab" {% if item.kind == "Lab" %}selected{% endif %}>实验</option>
+                <option value="Homework" {% if item.kind == "Homework" %}selected{% endif %}>作业</option>
+                <option value="Midterm" {% if item.kind == "Midterm" %}selected{% endif %}>期中</option>
+                <option value="Quiz" {% if item.kind == "Quiz" %}selected{% endif %}>测验</option>
+                <option value="Other" {% if item.kind == "Other" %}selected{% endif %}>其他</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-industrial-400 mb-1">标题</label>
+            <input type="text" name="title" value="{{ item.title }}" class="input-field rounded" required>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-industrial-400 mb-1">日期</label>
+            <input type="date" name="date" value="{% if let Some(date) = item.date %}{{ date }}{% endif %}" class="input-field rounded">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-industrial-400 mb-1">链接 (可选)</label>
+            <input type="url" name="link" value="{% if let Some(link) = item.link %}{{ link }}{% endif %}" class="input-field rounded">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-industrial-400 mb-1">描述</label>
+            <textarea name="description" rows="3" class="input-field rounded">{% if let Some(desc) = item.description %}{{ desc }}{% endif %}</textarea>
+        </div>
+        <div class="flex justify-end space-x-3">
+            <button type="button" hx-get="/logs/{{ item.id }}" class="px-3 py-2 border border-industrial-600 rounded-md text-sm font-medium text-industrial-400 hover:bg-industrial-800">取消</button>
+            <button type="submit" class="btn-primary rounded text-sm font-medium">保存更改</button>
+        </div>
+    </form>
+</div>
+

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智习</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        industrial: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0f172a;
+            /* industrial-900 */
+            color: #e2e8f0;
+            /* industrial-200 */
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .input-field {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 0.5rem;
+            width: 100%;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #94a3b8;
+        }
+
+        .btn-primary {
+            background: #334155;
+            color: #f8fafc;
+            padding: 0.5rem 1rem;
+            border: 1px solid #475569;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: #475569;
+            border-color: #64748b;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen font-mono">
+    <nav class="border-b border-industrial-800 bg-industrial-900/90 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    {% block header %}
+                    <a href="/" class="text-xl font-bold tracking-wider text-industrial-100">智习</a>
+                    {% endblock %}
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="/"
+                            class="text-industrial-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">学期</a>
+                        
+                        {% if user.is_some() %}
+                        <form action="/logout" method="post" class="inline">
+                            <button type="submit" class="text-industrial-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">退出</button>
+                        </form>
+                        {% else %}
+                        <a href="/login" class="text-industrial-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">登录</a>
+                        <a href="/register" class="text-industrial-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">注册</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+
+</html>
