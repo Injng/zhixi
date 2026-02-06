@@ -1,60 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang }}">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ course.code }} — {{ course.title }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
-                    }
-                }
-            }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ course.code }} — {{ course.title }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            surface: {
+              0: '#fafafa',
+              1: '#f5f5f5',
+              2: '#e5e5e5',
+              3: '#d4d4d4',
+            },
+            ink: {
+              0: '#171717',
+              1: '#404040',
+              2: '#737373',
+              3: '#a3a3a3',
+              4: '#d4d4d4',
+            },
+            accent: '#2563eb',
+          }
         }
-    </script>
-    <style>
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-    </style>
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    body {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.01em;
+    }
+  </style>
 </head>
 
-<body class="min-h-screen bg-white text-gray-900">
-    <nav class="border-b border-gray-200 bg-white sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-14">
-                <div class="flex items-center space-x-3">
-                    <span class="text-lg font-bold text-gray-900">{{ course.code }}</span>
-                    <span class="text-gray-400">·</span>
-                    <span class="text-gray-600">{{ course.title }}</span>
-                </div>
-                <div class="flex items-center space-x-1">
-                    <a href="/p/{{ course.public_slug.as_deref().unwrap_or("") }}"
-                        class="px-3 py-1.5 text-sm font-medium rounded-md {% block calendar_tab_class %}text-gray-500 hover:text-gray-900 hover:bg-gray-100{% endblock %}">
-                        Calendar
-                    </a>
-                    <a href="/p/{{ course.public_slug.as_deref().unwrap_or("") }}/problems"
-                        class="px-3 py-1.5 text-sm font-medium rounded-md {% block problems_tab_class %}text-gray-500 hover:text-gray-900 hover:bg-gray-100{% endblock %}">
-                        Practice Problems
-                    </a>
-                </div>
-            </div>
+<body class="min-h-screen bg-white text-ink-0">
+  <nav class="border-b border-surface-2 bg-white/95 backdrop-blur-sm sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-14">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="text-base font-bold tracking-tight text-ink-0 shrink-0">{{ course.code }}</span>
+          <span class="text-ink-4">/</span>
+          <span class="text-sm text-ink-2 truncate prose-body">{{ course.title }}</span>
         </div>
-    </nav>
-
-    <main class="max-w-6xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer class="border-t border-gray-200 mt-12 py-6">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <p class="text-xs text-gray-400 text-center">Powered by Zhixi</p>
+        <div class="flex items-center gap-1 shrink-0">
+          <a href="{{ base_path }}"
+            class="px-3 py-1.5 text-sm font-medium {% block calendar_tab_class %}text-ink-3 hover:text-ink-0{% endblock %} transition-colors">
+            {% if lang == "zh" %}日历{% else %}Calendar{% endif %}
+          </a>
+          <a href="{{ base_path }}/problems"
+            class="px-3 py-1.5 text-sm font-medium {% block problems_tab_class %}text-ink-3 hover:text-ink-0{% endblock %} transition-colors">
+            {% if lang == "zh" %}题库{% else %}Problems{% endif %}
+          </a>
+          <span class="mx-2 h-4 w-px bg-surface-2"></span>
+          {% if lang == "zh" %}
+          <a href="/p/{{ course.public_slug.as_deref().unwrap_or("") }}"
+            class="px-1.5 py-0.5 text-xs font-medium uppercase text-ink-3 hover:text-ink-0 transition-colors">en</a>
+          <span class="px-1.5 py-0.5 text-xs font-bold uppercase text-ink-0 border-b border-ink-0">zh</span>
+          {% else %}
+          <span class="px-1.5 py-0.5 text-xs font-bold uppercase text-ink-0 border-b border-ink-0">en</span>
+          <a href="/p/{{ course.public_slug.as_deref().unwrap_or("") }}/zh"
+            class="px-1.5 py-0.5 text-xs font-medium uppercase text-ink-3 hover:text-ink-0 transition-colors">zh</a>
+          {% endif %}
         </div>
-    </footer>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t border-surface-2 mt-16 py-5">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <p class="text-xs text-ink-3 tracking-wider uppercase text-center">zhixi</p>
+    </div>
+  </footer>
 </body>
 
 </html>

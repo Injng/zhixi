@@ -1,49 +1,51 @@
 {% extends "public/layout.html" %}
 
-{% block calendar_tab_class %}text-gray-900 bg-gray-100 font-semibold{% endblock %}
+{% block calendar_tab_class %}text-ink-0 border-b border-ink-0{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">Weekly Calendar</h1>
-    <p class="text-sm text-gray-500 mt-1">{{ course.code }} — {{ course.title }}</p>
+<div class="mb-8">
+    <div class="flex items-baseline gap-3">
+        <h1 class="text-xl font-bold tracking-tight text-ink-0 uppercase">{% if lang == "zh" %}周历{% else %}Calendar{% endif %}</h1>
+        <span class="text-sm text-ink-3">{{ course.code }}</span>
+    </div>
 </div>
 
 {% if weeks.is_empty() && unscheduled.is_empty() %}
-<div class="text-center py-12 text-gray-400">
-    <p>No log items yet.</p>
+<div class="py-16 text-center">
+    <p class="text-sm text-ink-3 uppercase tracking-widest">{% if lang == "zh" %}暂无记录{% else %}no entries{% endif %}</p>
 </div>
 {% else %}
 
 {% if !weeks.is_empty() %}
-<div class="overflow-x-auto border border-gray-200 rounded-lg">
-    <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-            <tr>
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Week</th>
+<div class="overflow-x-auto">
+    <table class="w-full border-collapse text-sm">
+        <thead>
+            <tr class="border-b-2 border-ink-0">
+                <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-ink-0 whitespace-nowrap w-28">{% if lang == "zh" %}周{% else %}Wk{% endif %}</th>
                 {% for kind_name in active_kinds %}
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{{ kind_name }}</th>
+                <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-ink-0 whitespace-nowrap">{{ kind_name }}</th>
                 {% endfor %}
             </tr>
         </thead>
-        <tbody class="bg-white divide-y divide-gray-100">
+        <tbody>
             {% for week in weeks %}
-            <tr class="hover:bg-gray-50/50">
+            <tr class="border-b border-surface-2 group hover:bg-surface-0 transition-colors">
                 <td class="px-3 py-3 align-top whitespace-nowrap">
-                    <div class="text-sm font-semibold text-gray-900">Wk {{ week.week_number }}</div>
-                    <div class="text-xs text-gray-400">{{ week.start_date }}–{{ week.end_date }}</div>
+                    <div class="font-bold text-ink-0 tabular-nums">{% if lang == "zh" %}{{ week.week_number }}{% else %}{{ week.week_number }}{% endif %}</div>
+                    <div class="text-xs text-ink-3 mt-0.5">{{ week.start_date }}–{{ week.end_date }}</div>
                 </td>
                 {% for kind_pair in week.items_by_kind %}
                 <td class="px-3 py-3 align-top">
                     {% for item in kind_pair.1 %}
-                    <div class="mb-2 last:mb-0 border-l-2 pl-2 {% if item.kind == "Lecture" %}border-blue-400{% else if item.kind == "Discussion" %}border-green-400{% else if item.kind == "Lab" %}border-purple-400{% else if item.kind == "Homework" %}border-orange-400{% else if item.kind == "Quiz" %}border-yellow-400{% else if item.kind == "Midterm" %}border-red-400{% else %}border-gray-300{% endif %}">
+                    <div class="mb-2 last:mb-0 pl-2.5 border-l-2 {% if item.kind == "Lecture" %}border-accent{% else if item.kind == "Discussion" %}border-emerald-500{% else if item.kind == "Lab" %}border-violet-500{% else if item.kind == "Homework" %}border-amber-500{% else if item.kind == "Quiz" %}border-rose-400{% else if item.kind == "Midterm" %}border-red-600{% else %}border-ink-4{% endif %}">
                         {% if let Some(link) = item.link %}
-                        <a href="{{ link }}" target="_blank" class="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">{{ item.title }}</a>
+                        <a href="{{ link }}" target="_blank" class="font-medium text-accent hover:underline underline-offset-2 decoration-accent/40">{{ item.title }}</a>
                         {% else %}
-                        <span class="text-sm font-medium text-gray-900">{{ item.title }}</span>
+                        <span class="font-medium text-ink-0">{{ item.title }}</span>
                         {% endif %}
                         {% if let Some(desc) = item.description %}
                         {% if !desc.is_empty() %}
-                        <div class="text-xs text-gray-500 mt-0.5">{{ desc }}</div>
+                        <div class="text-ink-2 mt-0.5 prose-body text-sm leading-relaxed">{{ desc }}</div>
                         {% endif %}
                         {% endif %}
                     </div>
@@ -58,20 +60,23 @@
 {% endif %}
 
 {% if !unscheduled.is_empty() %}
-<div class="mt-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-3">Unscheduled</h2>
+<div class="mt-10">
+    <div class="flex items-center gap-3 mb-4">
+        <h2 class="text-sm font-bold uppercase tracking-widest text-ink-2">{% if lang == "zh" %}未安排{% else %}Unscheduled{% endif %}</h2>
+        <div class="flex-1 h-px bg-surface-2"></div>
+    </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {% for item in unscheduled %}
-        <div class="border border-gray-200 rounded-lg p-3 border-l-4 {% if item.kind == "Lecture" %}border-l-blue-400{% else if item.kind == "Discussion" %}border-l-green-400{% else if item.kind == "Lab" %}border-l-purple-400{% else if item.kind == "Homework" %}border-l-orange-400{% else if item.kind == "Quiz" %}border-l-yellow-400{% else if item.kind == "Midterm" %}border-l-red-400{% else %}border-l-gray-300{% endif %}">
-            <span class="text-xs font-semibold uppercase text-gray-400">{{ item.kind }}</span>
+        <div class="px-4 py-3 border-l-2 {% if item.kind == "Lecture" %}border-accent{% else if item.kind == "Discussion" %}border-emerald-500{% else if item.kind == "Lab" %}border-violet-500{% else if item.kind == "Homework" %}border-amber-500{% else if item.kind == "Quiz" %}border-rose-400{% else if item.kind == "Midterm" %}border-red-600{% else %}border-ink-4{% endif %} bg-surface-0 hover:bg-surface-1 transition-colors">
+            <div class="text-xs font-bold uppercase tracking-widest text-ink-3 mb-1">{{ item.kind }}</div>
             {% if let Some(link) = item.link %}
-            <div><a href="{{ link }}" target="_blank" class="text-sm font-medium text-blue-600 hover:underline">{{ item.title }}</a></div>
+            <a href="{{ link }}" target="_blank" class="text-sm font-medium text-accent hover:underline underline-offset-2">{{ item.title }}</a>
             {% else %}
-            <div class="text-sm font-medium text-gray-900">{{ item.title }}</div>
+            <span class="text-sm font-medium text-ink-0">{{ item.title }}</span>
             {% endif %}
             {% if let Some(desc) = item.description %}
             {% if !desc.is_empty() %}
-            <div class="text-xs text-gray-500 mt-0.5">{{ desc }}</div>
+            <div class="text-sm text-ink-2 mt-1 prose-body leading-relaxed">{{ desc }}</div>
             {% endif %}
             {% endif %}
         </div>

@@ -158,6 +158,8 @@ struct PublicCalendarTemplate {
     weeks: Vec<CalendarWeek>,
     unscheduled: Vec<PublicLogItem>,
     active_kinds: Vec<String>,
+    lang: String,
+    base_path: String,
 }
 
 #[derive(Template)]
@@ -166,6 +168,8 @@ struct PublicProblemsTemplate {
     course: Course,
     problems: Vec<PublicProblem>,
     all_categories: Vec<String>,
+    lang: String,
+    base_path: String,
 }
 
 // Forms
@@ -1324,11 +1328,20 @@ fn build_calendar(
     log_items: Vec<LogItem>,
     show_lecture_links: bool,
     translations: &std::collections::HashMap<String, String>,
+    translate_titles: bool,
 ) -> (Vec<CalendarWeek>, Vec<PublicLogItem>, Vec<String>) {
     let to_public = |item: &LogItem| -> PublicLogItem {
-        let title = translate::translate_title_algorithmic(&item.kind, &item.title);
+        let title = if translate_titles {
+            translate::translate_title_algorithmic(&item.kind, &item.title)
+        } else {
+            item.title.clone()
+        };
         let description = item.description.as_ref().and_then(|d| {
-            if d.is_empty() { None } else { Some(translations.get(d).cloned().unwrap_or_else(|| d.clone())) }
+            if d.is_empty() { None } else if translate_titles {
+                Some(translations.get(d).cloned().unwrap_or_else(|| d.clone()))
+            } else {
+                Some(d.clone())
+            }
         });
         let link = filter_public_link(&item.link, &item.kind, show_lecture_links);
         PublicLogItem {
@@ -1462,9 +1475,10 @@ async fn public_course_calendar(mut db: Connection<Db>, slug: String) -> Result<
         }
     }
 
-    let (weeks, unscheduled, active_kinds) = build_calendar(log_items, course.show_lecture_links, &translations);
+    let (weeks, unscheduled, active_kinds) = build_calendar(log_items, course.show_lecture_links, &translations, true);
 
-    Ok(PublicCalendarTemplate { course, weeks, unscheduled, active_kinds })
+    let base_path = format!("/p/{}", course.public_slug.as_deref().unwrap_or(""));
+    Ok(PublicCalendarTemplate { course, weeks, unscheduled, active_kinds, lang: "en".to_string(), base_path })
 }
 
 #[get("/p/<slug>/problems")]
@@ -1582,7 +1596,109 @@ async fn public_course_problems(mut db: Connection<Db>, slug: String) -> Result<
     let mut all_categories: Vec<String> = all_categories_set.into_iter().collect();
     all_categories.sort();
 
-    Ok(PublicProblemsTemplate { course, problems, all_categories })
+    let base_path = format!("/p/{}", course.public_slug.as_deref().unwrap_or(""));
+    Ok(PublicProblemsTemplate { course, problems, all_categories, lang: "en".to_string(), base_path })
+}
+
+// ========== Public Routes (Chinese / untranslated) ==========
+
+#[get("/p/<slug>/zh")]
+async fn public_course_calendar_zh(mut db: Connection<Db>, slug: String) -> Result<PublicCalendarTemplate, Status> {
+    let course = sqlx::query_as::<_, Course>(
+        "SELECT * FROM courses WHERE public_slug = ? AND is_published = 1"
+    )
+    .bind(&slug)
+    .fetch_optional(&mut **db)
+    .await
+    .unwrap_or(None)
+    .ok_or(Status::NotFound)?;
+
+    let log_items = sqlx::query_as::<_, LogItem>(
+        "SELECT * FROM log_items WHERE course_id = ? ORDER BY date ASC, id ASC"
+    )
+    .bind(course.id)
+    .fetch_all(&mut **db)
+    .await
+    .unwrap_or_default();
+
+    let empty_translations = std::collections::HashMap::new();
+    let (weeks, unscheduled, active_kinds) = build_calendar(log_items, course.show_lecture_links, &empty_translations, false);
+
+    let base_path = format!("/p/{}/zh", course.public_slug.as_deref().unwrap_or(""));
+    Ok(PublicCalendarTemplate { course, weeks, unscheduled, active_kinds, lang: "zh".to_string(), base_path })
+}
+
+#[get("/p/<slug>/zh/problems")]
+async fn public_course_problems_zh(mut db: Connection<Db>, slug: String) -> Result<PublicProblemsTemplate, Status> {
+    let course = sqlx::query_as::<_, Course>(
+        "SELECT * FROM courses WHERE public_slug = ? AND is_published = 1"
+    )
+    .bind(&slug)
+    .fetch_optional(&mut **db)
+    .await
+    .unwrap_or(None)
+    .ok_or(Status::NotFound)?;
+
+    let raw_problems = sqlx::query_as::<_, ProblemWithCategories>(
+        r#"
+        SELECT
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+            GROUP_CONCAT(c.name) as category_names,
+            COALESCE(l.kind, 'Exam') as source_kind,
+            COALESCE(l.title, e.title, '') as source_title
+        FROM problems p
+        LEFT JOIN log_items l ON p.log_item_id = l.id
+        LEFT JOIN exams e ON p.exam_id = e.id
+        LEFT JOIN problem_categories pc ON p.id = pc.problem_id
+        LEFT JOIN categories c ON pc.category_id = c.id
+        WHERE (l.course_id = ? OR e.course_id = ?)
+        GROUP BY p.id
+        "#
+    )
+    .bind(course.id)
+    .bind(course.id)
+    .fetch_all(&mut **db)
+    .await
+    .unwrap_or_default();
+
+    let mut all_categories_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    let problems: Vec<PublicProblem> = raw_problems.iter().map(|p| {
+        let notes = p.notes.clone().filter(|n| !n.is_empty());
+
+        let category_names = p.category_names.as_ref().map(|cats| {
+            cats.split(',')
+                .map(|c| {
+                    let c = c.trim().to_string();
+                    all_categories_set.insert(c.clone());
+                    c
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        });
+
+        let source_title = p.source_title.clone();
+
+        let solution_link = p.solution_link.as_ref().and_then(|link| {
+            if link.contains("notes.lnjng.com") { Some(link.clone()) } else { None }
+        });
+
+        PublicProblem {
+            id: p.id,
+            image_url: p.image_url.clone(),
+            notes,
+            category_names,
+            source_kind: p.source_kind.clone(),
+            source_title,
+            solution_link,
+        }
+    }).collect();
+
+    let mut all_categories: Vec<String> = all_categories_set.into_iter().collect();
+    all_categories.sort();
+
+    let base_path = format!("/p/{}/zh", course.public_slug.as_deref().unwrap_or(""));
+    Ok(PublicProblemsTemplate { course, problems, all_categories, lang: "zh".to_string(), base_path })
 }
 
 pub fn routes() -> Vec<rocket::Route> {
@@ -1622,6 +1738,8 @@ pub fn routes() -> Vec<rocket::Route> {
         update_course_settings,
         translate_course,
         public_course_calendar,
-        public_course_problems
+        public_course_problems,
+        public_course_calendar_zh,
+        public_course_problems_zh
     ]
 }
