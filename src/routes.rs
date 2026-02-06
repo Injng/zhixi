@@ -8,9 +8,12 @@ use askama::Template;
 use crate::db::Db;
 use crate::models::*;
 use crate::auth::AuthUser;
-use rocket::http::{Cookie, CookieJar, SameSite};
+use crate::translate;
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use rocket::response::Redirect;
+use chrono::{Datelike, NaiveDate};
+use std::collections::BTreeMap;
 
 // Templates
 #[derive(Template)]
@@ -139,6 +142,32 @@ struct ExamItemEditTemplate {
     user: Option<AuthUser>,
 }
 
+#[derive(Template)]
+#[template(path = "course_settings.html")]
+struct CourseSettingsTemplate {
+    course: Course,
+    courses: Vec<Course>,
+    semester: Semester,
+    user: Option<AuthUser>,
+}
+
+#[derive(Template)]
+#[template(path = "public/calendar.html")]
+struct PublicCalendarTemplate {
+    course: Course,
+    weeks: Vec<CalendarWeek>,
+    unscheduled: Vec<PublicLogItem>,
+    active_kinds: Vec<String>,
+}
+
+#[derive(Template)]
+#[template(path = "public/problems.html")]
+struct PublicProblemsTemplate {
+    course: Course,
+    problems: Vec<PublicProblem>,
+    all_categories: Vec<String>,
+}
+
 // Forms
 #[derive(FromForm)]
 struct NewSemester {
@@ -208,6 +237,13 @@ struct NewExam {
 struct UpdateExam {
     title: String,
     date: Option<String>,
+}
+
+#[derive(FromForm)]
+struct CourseSettings {
+    is_published: Option<String>,
+    public_slug: Option<String>,
+    show_lecture_links: Option<String>,
 }
 
 // Shared query for fetching a problem with categories
@@ -383,6 +419,9 @@ async fn create_course(mut db: Connection<Db>, user: AuthUser, id: i64, form: Fo
         semester_id: id,
         code: form.code.clone(),
         title: form.title.clone(),
+        is_published: false,
+        public_slug: None,
+        show_lecture_links: false,
     };
     CourseCardTemplate { course, user: Some(user) }
 }
@@ -1125,6 +1164,407 @@ async fn get_exam_problems(mut db: Connection<Db>, _user: AuthUser, id: i64) -> 
     html
 }
 
+// ========== Course Settings Routes ==========
+
+#[get("/courses/<id>/settings")]
+async fn view_course_settings(mut db: Connection<Db>, user: AuthUser, id: i64) -> CourseSettingsTemplate {
+    let course = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE id = ?")
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
+
+    let semester = sqlx::query_as::<_, Semester>("SELECT * FROM semesters WHERE id = ?")
+        .bind(course.semester_id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
+
+    let courses = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE semester_id = ?")
+        .bind(course.semester_id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    CourseSettingsTemplate { course, courses, semester, user: Some(user) }
+}
+
+#[post("/courses/<id>/settings", data = "<form>")]
+async fn update_course_settings(mut db: Connection<Db>, _user: AuthUser, id: i64, form: Form<CourseSettings>) -> Redirect {
+    let is_published = form.is_published.as_deref() == Some("on");
+    let show_lecture_links = form.show_lecture_links.as_deref() == Some("on");
+    let slug = form.public_slug.as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
+    sqlx::query("UPDATE courses SET is_published = ?, public_slug = ?, show_lecture_links = ? WHERE id = ?")
+        .bind(is_published)
+        .bind(&slug)
+        .bind(show_lecture_links)
+        .bind(id)
+        .execute(&mut **db)
+        .await
+        .unwrap();
+
+    Redirect::to(format!("/courses/{}/settings", id))
+}
+
+#[post("/courses/<id>/translate")]
+async fn translate_course(mut db: Connection<Db>, _user: AuthUser, id: i64) -> String {
+    let course = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE id = ?")
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
+
+    let course_context = format!("{} {}", course.code, course.title);
+
+    // Collect all texts that need LLM translation
+    let mut texts_to_translate: Vec<String> = Vec::new();
+
+    // Log item descriptions
+    let log_items = sqlx::query_as::<_, LogItem>("SELECT * FROM log_items WHERE course_id = ?")
+        .bind(id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    for item in &log_items {
+        if let Some(desc) = &item.description {
+            if !desc.is_empty() {
+                texts_to_translate.push(desc.clone());
+            }
+        }
+    }
+
+    // Category names
+    let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
+        .bind(id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    for cat in &categories {
+        texts_to_translate.push(cat.name.clone());
+    }
+
+    // Problem notes
+    let problems = sqlx::query_as::<_, Problem>(
+        "SELECT p.* FROM problems p LEFT JOIN log_items l ON p.log_item_id = l.id LEFT JOIN exams e ON p.exam_id = e.id WHERE l.course_id = ? OR e.course_id = ?"
+    )
+        .bind(id)
+        .bind(id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    for problem in &problems {
+        if let Some(notes) = &problem.notes {
+            if !notes.is_empty() {
+                texts_to_translate.push(notes.clone());
+            }
+        }
+    }
+
+    // Exam titles
+    let exams = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE course_id = ?")
+        .bind(id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    for exam in &exams {
+        texts_to_translate.push(exam.title.clone());
+    }
+
+    if texts_to_translate.is_empty() {
+        return "<span class=\"text-green-400\">No content to translate.</span>".to_string();
+    }
+
+    let results = translate::translate_batch(&mut db, &texts_to_translate, &course_context).await;
+    let total = results.len();
+
+    format!("<span class=\"text-green-400\">Translated {} items successfully.</span>", total)
+}
+
+// ========== Public Routes ==========
+
+fn filter_public_link(link: &Option<String>, kind: &str, show_lecture_links: bool) -> Option<String> {
+    match link {
+        Some(url) if url.contains("notes.lnjng.com") => Some(url.clone()),
+        Some(url) if url.contains("drive.google.com") && kind == "Lecture" && show_lecture_links => Some(url.clone()),
+        _ => None,
+    }
+}
+
+const ALL_KINDS: &[&str] = &["Lecture", "Discussion", "Lab", "Homework", "Quiz", "Midterm", "Other"];
+
+fn build_calendar(
+    log_items: Vec<LogItem>,
+    show_lecture_links: bool,
+    translations: &std::collections::HashMap<String, String>,
+) -> (Vec<CalendarWeek>, Vec<PublicLogItem>, Vec<String>) {
+    let to_public = |item: &LogItem| -> PublicLogItem {
+        let title = translate::translate_title_algorithmic(&item.kind, &item.title);
+        let description = item.description.as_ref().and_then(|d| {
+            if d.is_empty() { None } else { Some(translations.get(d).cloned().unwrap_or_else(|| d.clone())) }
+        });
+        let link = filter_public_link(&item.link, &item.kind, show_lecture_links);
+        PublicLogItem {
+            id: item.id,
+            kind: item.kind.clone(),
+            title,
+            description,
+            date: item.date.clone(),
+            link,
+        }
+    };
+
+    let (dated, undated): (Vec<_>, Vec<_>) = log_items.iter().partition(|i| {
+        i.date.as_ref().map_or(false, |d| !d.is_empty())
+    });
+
+    let unscheduled: Vec<PublicLogItem> = undated.iter().map(|i| to_public(i)).collect();
+
+    if dated.is_empty() {
+        return (vec![], unscheduled, vec![]);
+    }
+
+    // Parse dates and find epoch
+    let mut dated_with_dates: Vec<(&LogItem, NaiveDate)> = Vec::new();
+    for item in &dated {
+        if let Some(date_str) = &item.date {
+            if let Ok(date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                dated_with_dates.push((item, date));
+            }
+        }
+    }
+
+    if dated_with_dates.is_empty() {
+        return (vec![], unscheduled, vec![]);
+    }
+
+    dated_with_dates.sort_by_key(|(_, d)| *d);
+
+    let epoch = dated_with_dates[0].1;
+    let epoch_monday = epoch - chrono::Duration::days(epoch.weekday().num_days_from_monday() as i64);
+
+    // Bucket by week
+    let mut weeks_map: BTreeMap<u32, std::collections::HashMap<String, Vec<PublicLogItem>>> = BTreeMap::new();
+    let mut kind_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
+    for (item, date) in &dated_with_dates {
+        let days_from_epoch = (*date - epoch_monday).num_days();
+        let week_index = (days_from_epoch / 7) as u32;
+        let public_item = to_public(item);
+        let kind = public_item.kind.clone();
+
+        *kind_counts.entry(kind.clone()).or_insert(0) += 1;
+
+        weeks_map
+            .entry(week_index)
+            .or_default()
+            .entry(kind)
+            .or_default()
+            .push(public_item);
+    }
+
+    // Determine which kinds have items (for column visibility)
+    let active_kinds: Vec<String> = ALL_KINDS
+        .iter()
+        .filter(|k| kind_counts.contains_key(**k))
+        .map(|k| k.to_string())
+        .collect();
+
+    // Map kind to canonical name for non-standard kinds
+    let max_week = weeks_map.keys().last().copied().unwrap_or(0);
+
+    let mut weeks = Vec::new();
+    for week_num in 0..=max_week {
+        let week_items = weeks_map.remove(&week_num).unwrap_or_default();
+        let monday = epoch_monday + chrono::Duration::days(week_num as i64 * 7);
+        let sunday = monday + chrono::Duration::days(6);
+
+        let items_by_kind: Vec<(String, Vec<PublicLogItem>)> = active_kinds
+            .iter()
+            .map(|kind| {
+                let items = week_items.get(kind).cloned().unwrap_or_default();
+                (kind.clone(), items)
+            })
+            .collect();
+
+        weeks.push(CalendarWeek {
+            week_number: week_num + 1,
+            start_date: monday.format("%b %d").to_string(),
+            end_date: sunday.format("%b %d").to_string(),
+            items_by_kind,
+        });
+    }
+
+    (weeks, unscheduled, active_kinds)
+}
+
+#[get("/p/<slug>")]
+async fn public_course_calendar(mut db: Connection<Db>, slug: String) -> Result<PublicCalendarTemplate, Status> {
+    let course = sqlx::query_as::<_, Course>(
+        "SELECT * FROM courses WHERE public_slug = ? AND is_published = 1"
+    )
+    .bind(&slug)
+    .fetch_optional(&mut **db)
+    .await
+    .unwrap_or(None)
+    .ok_or(Status::NotFound)?;
+
+    let log_items = sqlx::query_as::<_, LogItem>(
+        "SELECT * FROM log_items WHERE course_id = ? ORDER BY date ASC, id ASC"
+    )
+    .bind(course.id)
+    .fetch_all(&mut **db)
+    .await
+    .unwrap_or_default();
+
+    // Look up cached translations for descriptions
+    let mut desc_texts: Vec<String> = Vec::new();
+    for item in &log_items {
+        if let Some(desc) = &item.description {
+            if !desc.is_empty() {
+                desc_texts.push(desc.clone());
+            }
+        }
+    }
+
+    let cached = translate::lookup_cached_translations(&mut db, &desc_texts).await;
+    let mut translations: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for (text, translation) in desc_texts.iter().zip(cached.iter()) {
+        if let Some(t) = translation {
+            translations.insert(text.clone(), t.clone());
+        }
+    }
+
+    let (weeks, unscheduled, active_kinds) = build_calendar(log_items, course.show_lecture_links, &translations);
+
+    Ok(PublicCalendarTemplate { course, weeks, unscheduled, active_kinds })
+}
+
+#[get("/p/<slug>/problems")]
+async fn public_course_problems(mut db: Connection<Db>, slug: String) -> Result<PublicProblemsTemplate, Status> {
+    let course = sqlx::query_as::<_, Course>(
+        "SELECT * FROM courses WHERE public_slug = ? AND is_published = 1"
+    )
+    .bind(&slug)
+    .fetch_optional(&mut **db)
+    .await
+    .unwrap_or(None)
+    .ok_or(Status::NotFound)?;
+
+    let raw_problems = sqlx::query_as::<_, ProblemWithCategories>(
+        r#"
+        SELECT
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+            GROUP_CONCAT(c.name) as category_names,
+            COALESCE(l.kind, 'Exam') as source_kind,
+            COALESCE(l.title, e.title, '') as source_title
+        FROM problems p
+        LEFT JOIN log_items l ON p.log_item_id = l.id
+        LEFT JOIN exams e ON p.exam_id = e.id
+        LEFT JOIN problem_categories pc ON p.id = pc.problem_id
+        LEFT JOIN categories c ON pc.category_id = c.id
+        WHERE (l.course_id = ? OR e.course_id = ?)
+        GROUP BY p.id
+        "#
+    )
+    .bind(course.id)
+    .bind(course.id)
+    .fetch_all(&mut **db)
+    .await
+    .unwrap_or_default();
+
+    // Collect texts for cache lookup: notes, category names, source titles
+    let mut texts_to_lookup: Vec<String> = Vec::new();
+    for p in &raw_problems {
+        if let Some(notes) = &p.notes {
+            if !notes.is_empty() {
+                texts_to_lookup.push(notes.clone());
+            }
+        }
+        if let Some(cats) = &p.category_names {
+            for cat in cats.split(',') {
+                let cat = cat.trim();
+                if !cat.is_empty() {
+                    texts_to_lookup.push(cat.to_string());
+                }
+            }
+        }
+        if !p.source_title.is_empty() {
+            texts_to_lookup.push(p.source_title.clone());
+        }
+    }
+
+    let cached = translate::lookup_cached_translations(&mut db, &texts_to_lookup).await;
+    let mut t_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for (text, translation) in texts_to_lookup.iter().zip(cached.iter()) {
+        if let Some(t) = translation {
+            t_map.insert(text.clone(), t.clone());
+        }
+    }
+
+    let mut all_categories_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    let problems: Vec<PublicProblem> = raw_problems.iter().map(|p| {
+        // Translate notes
+        let notes = p.notes.as_ref().and_then(|n| {
+            if n.is_empty() { None } else { Some(t_map.get(n).cloned().unwrap_or_else(|| n.clone())) }
+        });
+
+        // Translate category names
+        let category_names = p.category_names.as_ref().map(|cats| {
+            cats.split(',')
+                .map(|c| {
+                    let c = c.trim();
+                    let translated = t_map.get(c).cloned().unwrap_or_else(|| c.to_string());
+                    all_categories_set.insert(translated.clone());
+                    translated
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        });
+
+        // Translate source title
+        let source_title = if p.source_title.is_empty() {
+            String::new()
+        } else {
+            let translated_title = translate::translate_title_algorithmic(&p.source_kind, &p.source_title);
+            // If algorithmic didn't change it, try cache
+            if translated_title == p.source_title {
+                t_map.get(&p.source_title).cloned().unwrap_or(translated_title)
+            } else {
+                translated_title
+            }
+        };
+
+        // Filter solution_link: only notes.lnjng.com
+        let solution_link = p.solution_link.as_ref().and_then(|link| {
+            if link.contains("notes.lnjng.com") { Some(link.clone()) } else { None }
+        });
+
+        PublicProblem {
+            id: p.id,
+            image_url: p.image_url.clone(),
+            notes,
+            category_names,
+            source_kind: p.source_kind.clone(),
+            source_title,
+            solution_link,
+        }
+    }).collect();
+
+    let mut all_categories: Vec<String> = all_categories_set.into_iter().collect();
+    all_categories.sort();
+
+    Ok(PublicProblemsTemplate { course, problems, all_categories })
+}
+
 pub fn routes() -> Vec<rocket::Route> {
     routes![
         index,
@@ -1157,6 +1597,11 @@ pub fn routes() -> Vec<rocket::Route> {
         update_exam,
         delete_exam,
         create_exam_problem,
-        get_exam_problems
+        get_exam_problems,
+        view_course_settings,
+        update_course_settings,
+        translate_course,
+        public_course_calendar,
+        public_course_problems
     ]
 }

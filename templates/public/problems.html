@@ -1,0 +1,119 @@
+{% extends "public/layout.html" %}
+
+{% block problems_tab_class %}text-gray-900 bg-gray-100 font-semibold{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Practice Problems</h1>
+    <p class="text-sm text-gray-500 mt-1">{{ course.code }} — {{ course.title }}</p>
+</div>
+
+{% if all_categories.is_empty() && problems.is_empty() %}
+<div class="text-center py-12 text-gray-400">
+    <p>No practice problems yet.</p>
+</div>
+{% else %}
+
+{% if !all_categories.is_empty() %}
+<div class="mb-6 flex flex-wrap gap-2" id="category-filters">
+    <button onclick="filterAll()" class="filter-btn px-3 py-1.5 text-sm font-medium rounded-full border border-gray-300 bg-gray-900 text-white transition-colors" data-category="all">
+        All
+    </button>
+    {% for cat in all_categories %}
+    <button onclick="toggleCategory(this)" class="filter-btn px-3 py-1.5 text-sm font-medium rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors" data-category="{{ cat }}">
+        {{ cat }}
+    </button>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="problem-grid">
+    {% for problem in problems %}
+    <div class="problem-card border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+         data-categories="{{ problem.category_names.as_deref().unwrap_or("") }}">
+        <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider {% if problem.source_kind == "Lecture" %}text-blue-600{% else if problem.source_kind == "Discussion" %}text-green-600{% else if problem.source_kind == "Lab" %}text-purple-600{% else if problem.source_kind == "Homework" %}text-orange-600{% else if problem.source_kind == "Quiz" %}text-yellow-600{% else if problem.source_kind == "Midterm" %}text-red-600{% else %}text-gray-600{% endif %}">
+                {{ problem.source_kind }} · {{ problem.source_title }}
+            </span>
+            {% if let Some(cats) = problem.category_names %}
+            <div class="flex gap-1 flex-wrap justify-end">
+                {% for cat in cats.split(',') %}
+                <span class="text-[10px] px-2 py-0.5 bg-gray-200 text-gray-600 rounded-full font-medium">{{ cat }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        {% if let Some(url) = problem.image_url %}
+        <div class="p-3">
+            <img src="{{ url }}" alt="Problem"
+                class="rounded border border-gray-200 max-h-80 object-contain w-full bg-gray-50">
+        </div>
+        {% endif %}
+
+        {% if problem.notes.is_some() || problem.solution_link.is_some() %}
+        <div class="px-4 py-3 border-t border-gray-100">
+            {% if let Some(notes) = problem.notes %}
+            <p class="text-sm text-gray-600 whitespace-pre-wrap">{{ notes }}</p>
+            {% endif %}
+            {% if let Some(link) = problem.solution_link %}
+            {% if !link.is_empty() %}
+            <a href="{{ link }}" target="_blank"
+                class="inline-block mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                View Solution &rarr;
+            </a>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+    let activeCategories = new Set();
+
+    function filterAll() {
+        activeCategories.clear();
+        updateFilters();
+    }
+
+    function toggleCategory(btn) {
+        const cat = btn.dataset.category;
+        if (activeCategories.has(cat)) {
+            activeCategories.delete(cat);
+        } else {
+            activeCategories.add(cat);
+        }
+        updateFilters();
+    }
+
+    function updateFilters() {
+        // Update button styles
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            const cat = btn.dataset.category;
+            const isActive = cat === 'all' ? activeCategories.size === 0 : activeCategories.has(cat);
+            if (isActive) {
+                btn.classList.add('bg-gray-900', 'text-white', 'border-gray-900');
+                btn.classList.remove('text-gray-600', 'border-gray-300');
+            } else {
+                btn.classList.remove('bg-gray-900', 'text-white', 'border-gray-900');
+                btn.classList.add('text-gray-600', 'border-gray-300');
+            }
+        });
+
+        // Filter cards
+        document.querySelectorAll('.problem-card').forEach(card => {
+            if (activeCategories.size === 0) {
+                card.style.display = '';
+                return;
+            }
+            const cardCats = (card.dataset.categories || '').split(',').map(s => s.trim());
+            const match = [...activeCategories].some(c => cardCats.includes(c));
+            card.style.display = match ? '' : 'none';
+        });
+    }
+</script>
+
+{% endif %}
+{% endblock %}

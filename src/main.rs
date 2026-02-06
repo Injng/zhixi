@@ -4,6 +4,7 @@ mod db;
 mod models;
 mod routes;
 mod auth;
+mod translate;
 
 use rocket_db_pools::Database;
 use db::Db;

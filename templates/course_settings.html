@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+
+{% block header %}
+<div class="flex items-center space-x-4">
+    <a href="/semesters/{{ course.semester_id }}" class="text-industrial-400 hover:text-white font-bold">{{
+        semester.name }}</a>
+    <div class="h-6 w-px bg-industrial-700"></div>
+    <div class="flex space-x-2">
+        {% for c in courses %}
+        <a href="/courses/{{ c.id }}"
+            class="px-3 py-1 rounded text-sm font-medium transition-colors {% if c.id == course.id %}bg-industrial-600 text-white border border-industrial-500{% else %}bg-industrial-800 text-industrial-300 hover:text-white hover:bg-industrial-700{% endif %}">
+            {{ c.code }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex items-center justify-between mb-2">
+        <h1 class="text-3xl font-bold text-industrial-100">{{ course.code }} <span
+                class="text-industrial-500 text-xl font-normal">/ {{ course.title }}</span></h1>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex space-x-1 border-b border-industrial-700">
+        <a href="/courses/{{ course.id }}"
+            class="px-4 py-2 text-sm font-medium text-industrial-400 hover:text-white hover:border-industrial-600 transition-colors">记录</a>
+        <a href="/courses/{{ course.id }}/study"
+            class="px-4 py-2 text-sm font-medium text-industrial-400 hover:text-white hover:border-industrial-600 transition-colors">错题本</a>
+        <a href="/courses/{{ course.id }}/exams"
+            class="px-4 py-2 text-sm font-medium text-industrial-400 hover:text-white hover:border-industrial-600 transition-colors">考卷</a>
+        <a href="/courses/{{ course.id }}/settings"
+            class="px-4 py-2 text-sm font-medium text-white border-b-2 border-industrial-400">设置</a>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="glass-panel p-6 rounded-lg lg:col-span-2">
+        <h2 class="text-lg font-bold mb-6 text-industrial-100 uppercase tracking-wide">公开页面设置</h2>
+
+        <form action="/courses/{{ course.id }}/settings" method="post" class="space-y-6">
+            <div>
+                <label class="flex items-center space-x-3 text-sm text-industrial-200">
+                    <input type="checkbox" name="is_published" value="on"
+                        {% if course.is_published %}checked{% endif %}
+                        class="rounded bg-industrial-800 border-industrial-600 w-5 h-5">
+                    <span class="font-bold text-base">发布公开页面</span>
+                </label>
+                <p class="text-xs text-industrial-500 mt-1 ml-8">开启后，课程将通过公开链接可访问。</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-industrial-400 mb-1">公开链接 Slug</label>
+                <div class="flex items-center space-x-2">
+                    <span class="text-industrial-500 text-sm">/p/</span>
+                    <input type="text" name="public_slug" value="{{ course.public_slug.as_deref().unwrap_or("") }}"
+                        placeholder="例如：math-1a" class="input-field rounded flex-1"
+                        pattern="[a-z0-9\-]+" title="只能包含小写字母、数字和连字符">
+                </div>
+                <p class="text-xs text-industrial-500 mt-1">只能包含小写字母、数字和连字符 (-)。</p>
+            </div>
+
+            <div>
+                <label class="flex items-center space-x-3 text-sm text-industrial-200">
+                    <input type="checkbox" name="show_lecture_links" value="on"
+                        {% if course.show_lecture_links %}checked{% endif %}
+                        class="rounded bg-industrial-800 border-industrial-600 w-5 h-5">
+                    <span class="font-bold">公开讲座录像链接</span>
+                </label>
+                <p class="text-xs text-industrial-500 mt-1 ml-8">允许在公开页面上显示 Google Drive 讲座录像链接。</p>
+            </div>
+
+            <button type="submit" class="btn-primary rounded uppercase tracking-wider text-sm font-bold">保存设置</button>
+        </form>
+
+        {% if course.is_published %}
+        {% if let Some(slug) = course.public_slug %}
+        <div class="mt-6 p-4 bg-industrial-900/50 rounded border border-industrial-800">
+            <p class="text-sm text-industrial-400 mb-1">公开页面链接：</p>
+            <a href="/p/{{ slug }}" target="_blank" class="text-blue-400 hover:text-blue-300 text-sm font-mono">/p/{{ slug }}</a>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="glass-panel p-6 rounded-lg lg:col-span-1 h-fit">
+        <h2 class="text-lg font-bold mb-4 text-industrial-100 uppercase tracking-wide">翻译</h2>
+        <p class="text-sm text-industrial-400 mb-4">将课程内容翻译为英文，用于公开页面展示。翻译结果会被缓存。</p>
+        <button hx-post="/courses/{{ course.id }}/translate" hx-swap="innerHTML" hx-target="#translate-status"
+            class="btn-primary w-full rounded uppercase tracking-wider text-sm font-bold">
+            翻译全部
+        </button>
+        <div id="translate-status" class="mt-4 text-sm text-industrial-400"></div>
+    </div>
+</div>
+{% endblock %}
