@@ -1,2 +1,4 @@
 nohup.out
 target
+*.db
+.env.local

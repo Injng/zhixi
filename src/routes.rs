@@ -298,15 +298,35 @@ async fn post_login(mut db: Connection<Db>, cookies: &CookieJar<'_>, form: Form<
 }
 
 #[get("/register")]
-async fn get_register(user: Option<AuthUser>) -> Result<RegisterTemplate, Redirect> {
+async fn get_register(mut db: Connection<Db>, user: Option<AuthUser>) -> Result<RegisterTemplate, Redirect> {
     if user.is_some() {
         return Err(Redirect::to("/"));
+    }
+    let has_users: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users)")
+        .fetch_one(&mut **db)
+        .await
+        .unwrap_or(true);
+    if has_users {
+        return Err(Redirect::to("/login"));
     }
     Ok(RegisterTemplate { user: None, error: None })
 }
 
 #[post("/register", data = "<form>")]
 async fn post_register(mut db: Connection<Db>, cookies: &CookieJar<'_>, form: Form<RegisterUser>) -> Result<Redirect, RegisterTemplate> {
+    // Block registration if any user already exists
+    let has_users: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users)")
+        .fetch_one(&mut **db)
+        .await
+        .unwrap_or(true);
+
+    if has_users {
+        return Err(RegisterTemplate {
+            user: None,
+            error: Some("Registration is closed.".into())
+        });
+    }
+
     // Check if user exists
     let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE username = ?)")
         .bind(&form.username)
