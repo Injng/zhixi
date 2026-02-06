@@ -113,6 +113,32 @@ struct RegisterTemplate {
     error: Option<String>,
 }
 
+#[derive(Template)]
+#[template(path = "course_exams.html")]
+struct CourseExamsTemplate {
+    course: Course,
+    courses: Vec<Course>,
+    exams: Vec<Exam>,
+    semester: Semester,
+    categories: Vec<Category>,
+    user: Option<AuthUser>,
+}
+
+#[derive(Template)]
+#[template(path = "partials/exam_item.html")]
+struct ExamItemTemplate {
+    exam: Exam,
+    categories: Vec<Category>,
+    user: Option<AuthUser>,
+}
+
+#[derive(Template)]
+#[template(path = "partials/exam_item_edit.html")]
+struct ExamItemEditTemplate {
+    exam: Exam,
+    user: Option<AuthUser>,
+}
+
 // Forms
 #[derive(FromForm)]
 struct NewSemester {
@@ -149,6 +175,7 @@ struct NewProblem<'r> {
     notes: Option<String>,
     categories: Option<String>, // Comma separated
     solution_link: Option<String>,
+    is_incorrect: Option<String>,
 }
 
 #[derive(FromForm)]
@@ -156,6 +183,7 @@ struct UpdateProblem {
     notes: Option<String>,
     solution_link: Option<String>,
     categories: Option<String>,
+    is_incorrect: Option<String>,
 }
 
 #[derive(FromForm)]
@@ -169,6 +197,34 @@ struct RegisterUser {
     username: String,
     password: String,
 }
+
+#[derive(FromForm)]
+struct NewExam {
+    title: String,
+    date: Option<String>,
+}
+
+#[derive(FromForm)]
+struct UpdateExam {
+    title: String,
+    date: Option<String>,
+}
+
+// Shared query for fetching a problem with categories
+const PROBLEM_WITH_CATEGORIES_QUERY: &str = r#"
+    SELECT
+        p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+        GROUP_CONCAT(c.name) as category_names,
+        COALESCE(l.kind, 'Exam') as source_kind,
+        COALESCE(l.title, e.title, '') as source_title
+    FROM problems p
+    LEFT JOIN log_items l ON p.log_item_id = l.id
+    LEFT JOIN exams e ON p.exam_id = e.id
+    LEFT JOIN problem_categories pc ON p.id = pc.problem_id
+    LEFT JOIN categories c ON pc.category_id = c.id
+    WHERE p.id = ?
+    GROUP BY p.id
+"#;
 
 // Auth Routes
 
@@ -199,9 +255,9 @@ async fn post_login(mut db: Connection<Db>, cookies: &CookieJar<'_>, form: Form<
         }
     }
 
-    Err(LoginTemplate { 
-        user: None, 
-        error: Some("Invalid username or password".into()) 
+    Err(LoginTemplate {
+        user: None,
+        error: Some("Invalid username or password".into())
     })
 }
 
@@ -223,9 +279,9 @@ async fn post_register(mut db: Connection<Db>, cookies: &CookieJar<'_>, form: Fo
         .unwrap_or(false);
 
     if exists {
-        return Err(RegisterTemplate { 
-            user: None, 
-            error: Some("Username already taken".into()) 
+        return Err(RegisterTemplate {
+            user: None,
+            error: Some("Username already taken".into())
         });
     }
 
@@ -245,9 +301,9 @@ async fn post_register(mut db: Connection<Db>, cookies: &CookieJar<'_>, form: Fo
             );
             Ok(Redirect::to("/"))
         },
-        Err(_) => Err(RegisterTemplate { 
-            user: None, 
-            error: Some("Registration failed".into()) 
+        Err(_) => Err(RegisterTemplate {
+            user: None,
+            error: Some("Registration failed".into())
         })
     }
 }
@@ -262,19 +318,12 @@ async fn logout(cookies: &CookieJar<'_>) -> Redirect {
 
 #[get("/")]
 async fn index(_db: Connection<Db>, user: Option<AuthUser>) -> Redirect {
-    // If not logged in, redirect to login? 
-    // Let's allow public view but require login for edit. 
-    // Actually, user requested "add auth", usually means access control.
-    // Let's make index public but show login/register if not logged in.
-    // Wait, I changed the return type to Redirect? No, I should keep it IndexTemplate if public.
-    // But if I want to protect it:
     if user.is_none() {
          return Redirect::to("/login");
     }
-    Redirect::to("/dashboard") // Or just render index
+    Redirect::to("/dashboard")
 }
 
-// Renaming index to dashboard or keeping it index but protected
 #[get("/dashboard")]
 async fn dashboard(mut db: Connection<Db>, user: AuthUser) -> IndexTemplate {
     let semesters = sqlx::query_as::<_, Semester>("SELECT * FROM semesters ORDER BY created_at DESC")
@@ -292,11 +341,11 @@ async fn create_semester(mut db: Connection<Db>, user: AuthUser, form: Form<NewS
         .await
         .unwrap()
         .last_insert_rowid();
-    
+
     let semester = Semester {
         id,
         name: form.name.clone(),
-        created_at: String::new(), // Simplified
+        created_at: String::new(),
     };
     SemesterRowTemplate { semester, user: Some(user) }
 }
@@ -308,13 +357,13 @@ async fn view_semester(mut db: Connection<Db>, user: AuthUser, id: i64) -> Semes
         .fetch_one(&mut **db)
         .await
         .unwrap();
-        
+
     let courses = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE semester_id = ?")
         .bind(id)
         .fetch_all(&mut **db)
         .await
         .unwrap_or_default();
-        
+
     SemesterTemplate { semester, courses, user: Some(user) }
 }
 
@@ -328,7 +377,7 @@ async fn create_course(mut db: Connection<Db>, user: AuthUser, id: i64, form: Fo
         .await
         .unwrap()
         .last_insert_rowid();
-        
+
     let course = Course {
         id: course_id,
         semester_id: id,
@@ -357,7 +406,7 @@ async fn view_course_log(mut db: Connection<Db>, user: AuthUser, id: i64) -> Cou
         .fetch_all(&mut **db)
         .await
         .unwrap_or_default();
-        
+
     let log_items = sqlx::query_as::<_, LogItem>("SELECT * FROM log_items WHERE course_id = ? ORDER BY date DESC, id DESC")
         .bind(id)
         .fetch_all(&mut **db)
@@ -369,7 +418,7 @@ async fn view_course_log(mut db: Connection<Db>, user: AuthUser, id: i64) -> Cou
         .fetch_all(&mut **db)
         .await
         .unwrap_or_default();
-        
+
     CourseLogTemplate { course, courses, log_items, semester, categories, user: Some(user) }
 }
 
@@ -386,7 +435,7 @@ async fn create_log_item(mut db: Connection<Db>, user: AuthUser, id: i64, form: 
         .await
         .unwrap()
         .last_insert_rowid();
-        
+
     let item = LogItem {
         id: item_id,
         course_id: id,
@@ -408,14 +457,12 @@ async fn create_log_item(mut db: Connection<Db>, user: AuthUser, id: i64, form: 
 
 #[delete("/logs/<id>")]
 async fn delete_log_item(mut db: Connection<Db>, _user: AuthUser, id: i64) -> String {
-    // 1. Find problems associated with this log item
     let problems = sqlx::query("SELECT id FROM problems WHERE log_item_id = ?")
         .bind(id)
         .fetch_all(&mut **db)
         .await
         .unwrap_or_default();
 
-    // 2. Delete problem_categories for these problems
     for problem in problems {
         let problem_id: i64 = problem.try_get("id").unwrap();
         sqlx::query("DELETE FROM problem_categories WHERE problem_id = ?")
@@ -425,14 +472,12 @@ async fn delete_log_item(mut db: Connection<Db>, _user: AuthUser, id: i64) -> St
             .unwrap();
     }
 
-    // 3. Delete problems
     sqlx::query("DELETE FROM problems WHERE log_item_id = ?")
         .bind(id)
         .execute(&mut **db)
         .await
         .unwrap();
 
-    // 4. Delete the log item
     sqlx::query("DELETE FROM log_items WHERE id = ?")
         .bind(id)
         .execute(&mut **db)
@@ -459,13 +504,13 @@ async fn get_log_item(mut db: Connection<Db>, user: AuthUser, id: i64) -> LogIte
         .fetch_one(&mut **db)
         .await
         .unwrap();
-        
+
     let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
         .bind(item.course_id)
         .fetch_all(&mut **db)
         .await
         .unwrap_or_default();
-        
+
     LogItemTemplate { item, categories, user: Some(user) }
 }
 
@@ -499,33 +544,28 @@ async fn update_log_item(mut db: Connection<Db>, user: AuthUser, id: i64, form: 
 
 #[post("/logs/<id>/problems", data = "<form>")]
 async fn create_problem(mut db: Connection<Db>, user: AuthUser, id: i64, mut form: Form<NewProblem<'_>>) -> ProblemRowTemplate {
-    // 1. Handle File Upload
     let file_name = format!("{}.png", Uuid::new_v4());
     let file_path = format!("uploads/{}", file_name);
-    // Ensure uploads directory exists (should be done in main, but good to be safe or assume it exists)
-    // We use move_copy_to to handle cross-device moves (e.g. /tmp to project dir) which persist_to fails on
     form.screenshot.move_copy_to(&file_path).await.expect("Unable to move or copy file");
     let image_url = format!("/uploads/{}", file_name);
 
-    // 2. Insert Problem
-    // Description is required by DB but removed from UI. We'll use a placeholder.
-    let description = "Screenshot Problem"; 
-    
-    let problem_id = sqlx::query("INSERT INTO problems (log_item_id, description, notes, image_url, solution_link) VALUES (?, ?, ?, ?, ?)")
+    let description = "Screenshot Problem";
+    let is_incorrect: bool = form.is_incorrect.as_deref() == Some("on");
+
+    let problem_id = sqlx::query("INSERT INTO problems (log_item_id, description, notes, image_url, solution_link, is_incorrect) VALUES (?, ?, ?, ?, ?, ?)")
         .bind(id)
         .bind(description)
         .bind(&form.notes)
         .bind(&image_url)
         .bind(&form.solution_link)
+        .bind(is_incorrect)
         .execute(&mut **db)
         .await
         .unwrap()
         .last_insert_rowid();
 
-    // 3. Handle Categories
     let mut category_names = String::new();
     if let Some(cats) = &form.categories {
-        // Need to fetch course_id first
         let log_item = sqlx::query_as::<_, LogItem>("SELECT * FROM log_items WHERE id = ?")
             .bind(id)
             .fetch_one(&mut **db)
@@ -533,8 +573,7 @@ async fn create_problem(mut db: Connection<Db>, user: AuthUser, id: i64, mut for
             .unwrap();
 
         let mut processed_cats = Vec::new();
-        for cat_name in cats.split(|c| c == ',' || c == '、').map(|s| s.trim()).filter(|s| !s.is_empty()) {
-            // Find or create category
+        for cat_name in cats.split(|c| c == ',' || c == '\u{3001}').map(|s| s.trim()).filter(|s| !s.is_empty()) {
             let cat_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE course_id = ? AND name = ?")
                 .bind(log_item.course_id)
                 .bind(cat_name)
@@ -555,48 +594,47 @@ async fn create_problem(mut db: Connection<Db>, user: AuthUser, id: i64, mut for
                 }
             };
 
-            // Link problem to category
             sqlx::query("INSERT INTO problem_categories (problem_id, category_id) VALUES (?, ?)")
                 .bind(problem_id)
                 .bind(cat_id)
                 .execute(&mut **db)
                 .await
                 .unwrap();
-            
+
             processed_cats.push(cat_name);
         }
         category_names = processed_cats.join(",");
     }
 
-    // 4. Return Template
     let problem = ProblemWithCategories {
         id: problem_id,
-        log_item_id: id,
+        log_item_id: Some(id),
+        exam_id: None,
         description: description.to_string(),
         notes: form.notes.clone(),
         image_url: Some(image_url),
         solution_link: form.solution_link.clone(),
+        is_incorrect,
         category_names: if category_names.is_empty() { None } else { Some(category_names) },
-        source_kind: "".to_string(), // Not needed for the row view immediately usually, but let's leave empty
+        source_kind: "".to_string(),
         source_title: "".to_string(),
     };
-    
+
     ProblemRowTemplate { problem, user: Some(user) }
 }
 
 #[get("/logs/<id>/problems")]
 async fn get_log_problems(mut db: Connection<Db>, _user: AuthUser, id: i64) -> String {
-    // This endpoint returns HTML for the list of problems for a specific log item
-    // We need a custom query to join categories
     let problems = sqlx::query_as::<_, ProblemWithCategories>(
         r#"
-        SELECT 
-            p.*, 
+        SELECT
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
             GROUP_CONCAT(c.name) as category_names,
-            l.kind as source_kind,
-            l.title as source_title
+            COALESCE(l.kind, 'Exam') as source_kind,
+            COALESCE(l.title, e.title, '') as source_title
         FROM problems p
-        JOIN log_items l ON p.log_item_id = l.id
+        LEFT JOIN log_items l ON p.log_item_id = l.id
+        LEFT JOIN exams e ON p.exam_id = e.id
         LEFT JOIN problem_categories pc ON p.id = pc.problem_id
         LEFT JOIN categories c ON pc.category_id = c.id
         WHERE p.log_item_id = ?
@@ -608,15 +646,9 @@ async fn get_log_problems(mut db: Connection<Db>, _user: AuthUser, id: i64) -> S
     .await
     .unwrap_or_default();
 
-    // Manually render the list of partials (Askama doesn't support iterating over partials easily in a Vec return without a wrapper template)
-    // Actually we can just use a wrapper template or just loop here and render.
-    // Let's use a simple wrapper template for this list if we didn't define one.
-    // Wait, I defined `partials/problem_row.html` but not a list wrapper for this specific context.
-    // I'll just return the concatenated string of rendered partials.
-    
     let mut html = String::new();
     for p in problems {
-        let t = ProblemRowTemplate { problem: p, user: None }; // User not needed for this partial context if we don't use it inside
+        let t = ProblemRowTemplate { problem: p, user: None };
         html.push_str(&t.render().unwrap());
     }
     html
@@ -641,56 +673,68 @@ async fn view_course_study(mut db: Connection<Db>, user: AuthUser, id: i64) -> C
         .fetch_all(&mut **db)
         .await
         .unwrap_or_default();
-        
+
     let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
         .bind(id)
         .fetch_all(&mut **db)
         .await
         .unwrap_or_default();
-        
+
     CourseStudyTemplate { course, courses, categories, semester, user: Some(user) }
 }
 
-#[get("/courses/<id>/study/problems?<source>&<category>")]
-async fn filter_study_problems(mut db: Connection<Db>, _user: AuthUser, id: i64, source: Option<Vec<String>>, category: Option<Vec<String>>) -> StudyProblemListTemplate {
-    // Build dynamic query
+#[get("/courses/<id>/study/problems?<source>&<category>&<incorrect>")]
+async fn filter_study_problems(mut db: Connection<Db>, _user: AuthUser, id: i64, source: Option<Vec<String>>, category: Option<Vec<String>>, incorrect: Option<String>) -> StudyProblemListTemplate {
     let mut query = String::from(
         r#"
-        SELECT 
-            p.*, 
+        SELECT
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
             GROUP_CONCAT(c.name) as category_names,
-            l.kind as source_kind,
-            l.title as source_title
+            COALESCE(l.kind, 'Exam') as source_kind,
+            COALESCE(l.title, e.title, '') as source_title
         FROM problems p
-        JOIN log_items l ON p.log_item_id = l.id
+        LEFT JOIN log_items l ON p.log_item_id = l.id
+        LEFT JOIN exams e ON p.exam_id = e.id
         LEFT JOIN problem_categories pc ON p.id = pc.problem_id
         LEFT JOIN categories c ON pc.category_id = c.id
-        WHERE l.course_id = ?
+        WHERE (l.course_id = ? OR e.course_id = ?)
         "#
     );
+
+    // Filter by incorrect only
+    if incorrect.as_deref() == Some("on") {
+        query.push_str(" AND p.is_incorrect = 1");
+    }
 
     // Filter by Source
     if let Some(sources) = &source {
         if !sources.is_empty() {
-            query.push_str(" AND l.kind IN (");
-            for (i, s) in sources.iter().enumerate() {
-                if i > 0 { query.push_str(", "); }
-                query.push_str(&format!("'{}'", s)); // Be careful with SQL injection here, but for now assuming safe inputs or use bind params properly
+            let has_exam = sources.iter().any(|s| s == "Exam");
+            let log_sources: Vec<&String> = sources.iter().filter(|s| *s != "Exam").collect();
+
+            if has_exam && !log_sources.is_empty() {
+                query.push_str(" AND (l.kind IN (");
+                for (i, s) in log_sources.iter().enumerate() {
+                    if i > 0 { query.push_str(", "); }
+                    query.push_str(&format!("'{}'", s));
+                }
+                query.push_str(") OR p.exam_id IS NOT NULL)");
+            } else if has_exam {
+                query.push_str(" AND p.exam_id IS NOT NULL");
+            } else {
+                query.push_str(" AND l.kind IN (");
+                for (i, s) in log_sources.iter().enumerate() {
+                    if i > 0 { query.push_str(", "); }
+                    query.push_str(&format!("'{}'", s));
+                }
+                query.push_str(")");
             }
-            query.push_str(")");
         }
     }
 
-    // Filter by Category (This is trickier with the join, but let's do a simple EXISTS or IN)
-    // For simplicity, let's just filter in the WHERE clause if the category join matches
-    // But since we group by p.id, we need to be careful.
-    // A better way is:
+    // Filter by Category
     if let Some(cats) = &category {
          if !cats.is_empty() {
-             // This logic is slightly flawed if we want problems that have ANY of the categories, but also want to show ALL categories for that problem.
-             // The current query joins all categories.
-             // We can add a HAVING clause or a subquery.
-             // Let's use a subquery for filtering.
              query.push_str(" AND p.id IN (SELECT pc2.problem_id FROM problem_categories pc2 WHERE pc2.category_id IN (");
              for (i, c) in cats.iter().enumerate() {
                  if i > 0 { query.push_str(", "); }
@@ -704,87 +748,73 @@ async fn filter_study_problems(mut db: Connection<Db>, _user: AuthUser, id: i64,
 
     let problems = sqlx::query_as::<_, ProblemWithCategories>(&query)
         .bind(id)
+        .bind(id)
         .fetch_all(&mut **db)
         .await
         .unwrap_or_default();
 
-    StudyProblemListTemplate { problems, user: None } // Partial usually doesn't need user unless we show edit buttons in it
+    StudyProblemListTemplate { problems, user: None }
 }
 
 #[get("/problems/<id>/edit")]
 async fn get_edit_problem(mut db: Connection<Db>, user: AuthUser, id: i64) -> ProblemEditTemplate {
-    let problem = sqlx::query_as::<_, ProblemWithCategories>(
-        r#"
-        SELECT 
-            p.*, 
-            GROUP_CONCAT(c.name) as category_names,
-            l.kind as source_kind,
-            l.title as source_title
-        FROM problems p
-        JOIN log_items l ON p.log_item_id = l.id
-        LEFT JOIN problem_categories pc ON p.id = pc.problem_id
-        LEFT JOIN categories c ON pc.category_id = c.id
-        WHERE p.id = ?
-        GROUP BY p.id
-        "#
-    )
-    .bind(id)
-    .fetch_one(&mut **db)
-    .await
-    .unwrap();
+    let problem = sqlx::query_as::<_, ProblemWithCategories>(PROBLEM_WITH_CATEGORIES_QUERY)
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
 
     ProblemEditTemplate { problem, user: Some(user) }
 }
 
 #[get("/problems/<id>")]
 async fn get_problem_row(mut db: Connection<Db>, user: AuthUser, id: i64) -> ProblemRowTemplate {
-    let problem = sqlx::query_as::<_, ProblemWithCategories>(
-        r#"
-        SELECT 
-            p.*, 
-            GROUP_CONCAT(c.name) as category_names,
-            l.kind as source_kind,
-            l.title as source_title
-        FROM problems p
-        JOIN log_items l ON p.log_item_id = l.id
-        LEFT JOIN problem_categories pc ON p.id = pc.problem_id
-        LEFT JOIN categories c ON pc.category_id = c.id
-        WHERE p.id = ?
-        GROUP BY p.id
-        "#
-    )
-    .bind(id)
-    .fetch_one(&mut **db)
-    .await
-    .unwrap();
+    let problem = sqlx::query_as::<_, ProblemWithCategories>(PROBLEM_WITH_CATEGORIES_QUERY)
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
 
     ProblemRowTemplate { problem, user: Some(user) }
 }
 
 #[post("/problems/<id>", data = "<form>")]
 async fn update_problem(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form<UpdateProblem>) -> ProblemRowTemplate {
-    // 1. Update Problem fields
-    sqlx::query("UPDATE problems SET notes = ?, solution_link = ? WHERE id = ?")
+    let is_incorrect: bool = form.is_incorrect.as_deref() == Some("on");
+
+    sqlx::query("UPDATE problems SET notes = ?, solution_link = ?, is_incorrect = ? WHERE id = ?")
         .bind(&form.notes)
         .bind(&form.solution_link)
+        .bind(is_incorrect)
         .bind(id)
         .execute(&mut **db)
         .await
         .unwrap();
 
-    // 2. Update Categories
-    // First, get the course_id via log_item
+    // Get the course_id via log_item or exam
     let problem_info = sqlx::query_as::<_, Problem>("SELECT * FROM problems WHERE id = ?")
         .bind(id)
         .fetch_one(&mut **db)
         .await
         .unwrap();
-        
-    let log_item = sqlx::query_as::<_, LogItem>("SELECT * FROM log_items WHERE id = ?")
-        .bind(problem_info.log_item_id)
-        .fetch_one(&mut **db)
-        .await
-        .unwrap();
+
+    let course_id: i64 = if let Some(log_item_id) = problem_info.log_item_id {
+        let log_item = sqlx::query_as::<_, LogItem>("SELECT * FROM log_items WHERE id = ?")
+            .bind(log_item_id)
+            .fetch_one(&mut **db)
+            .await
+            .unwrap();
+        log_item.course_id
+    } else if let Some(exam_id) = problem_info.exam_id {
+        let exam = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE id = ?")
+            .bind(exam_id)
+            .fetch_one(&mut **db)
+            .await
+            .unwrap();
+        exam.course_id
+    } else {
+        panic!("Problem has neither log_item_id nor exam_id");
+    };
 
     // Clear existing categories for this problem
     sqlx::query("DELETE FROM problem_categories WHERE problem_id = ?")
@@ -795,10 +825,9 @@ async fn update_problem(mut db: Connection<Db>, user: AuthUser, id: i64, form: F
 
     // Add new categories
     if let Some(cats) = &form.categories {
-        for cat_name in cats.split(|c| c == ',' || c == '、').map(|s| s.trim()).filter(|s| !s.is_empty()) {
-            // Find or create category
+        for cat_name in cats.split(|c| c == ',' || c == '\u{3001}').map(|s| s.trim()).filter(|s| !s.is_empty()) {
             let cat_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE course_id = ? AND name = ?")
-                .bind(log_item.course_id)
+                .bind(course_id)
                 .bind(cat_name)
                 .fetch_optional(&mut **db)
                 .await
@@ -808,7 +837,7 @@ async fn update_problem(mut db: Connection<Db>, user: AuthUser, id: i64, form: F
                 Some(cid) => cid,
                 None => {
                     sqlx::query("INSERT INTO categories (course_id, name) VALUES (?, ?)")
-                        .bind(log_item.course_id)
+                        .bind(course_id)
                         .bind(cat_name)
                         .execute(&mut **db)
                         .await
@@ -817,7 +846,6 @@ async fn update_problem(mut db: Connection<Db>, user: AuthUser, id: i64, form: F
                 }
             };
 
-            // Link problem to category
             sqlx::query("INSERT INTO problem_categories (problem_id, category_id) VALUES (?, ?)")
                 .bind(id)
                 .bind(cat_id)
@@ -827,45 +855,289 @@ async fn update_problem(mut db: Connection<Db>, user: AuthUser, id: i64, form: F
         }
     }
 
-    // 3. Return updated row
-    // Reuse get_problem_row logic or call it if I could, but I'll just copy the query for now to avoid borrow checker/async recursion issues if I tried to call the handler.
-    // Actually I can just run the query.
-    let problem = sqlx::query_as::<_, ProblemWithCategories>(
-        r#"
-        SELECT 
-            p.*, 
-            GROUP_CONCAT(c.name) as category_names,
-            l.kind as source_kind,
-            l.title as source_title
-        FROM problems p
-        JOIN log_items l ON p.log_item_id = l.id
-        LEFT JOIN problem_categories pc ON p.id = pc.problem_id
-        LEFT JOIN categories c ON pc.category_id = c.id
-        WHERE p.id = ?
-        GROUP BY p.id
-        "#
-    )
-    .bind(id)
-    .fetch_one(&mut **db)
-    .await
-    .unwrap();
+    let problem = sqlx::query_as::<_, ProblemWithCategories>(PROBLEM_WITH_CATEGORIES_QUERY)
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
 
     ProblemRowTemplate { problem, user: Some(user) }
 }
 
+// ========== Exam Routes ==========
+
+#[get("/courses/<id>/exams")]
+async fn view_course_exams(mut db: Connection<Db>, user: AuthUser, id: i64) -> CourseExamsTemplate {
+    let course = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE id = ?")
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
+
+    let semester = sqlx::query_as::<_, Semester>("SELECT * FROM semesters WHERE id = ?")
+        .bind(course.semester_id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
+
+    let courses = sqlx::query_as::<_, Course>("SELECT * FROM courses WHERE semester_id = ?")
+        .bind(course.semester_id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    let exams = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE course_id = ? ORDER BY date DESC, id DESC")
+        .bind(id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
+        .bind(id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    CourseExamsTemplate { course, courses, exams, semester, categories, user: Some(user) }
+}
+
+#[post("/courses/<id>/exams", data = "<form>")]
+async fn create_exam(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form<NewExam>) -> ExamItemTemplate {
+    let exam_id = sqlx::query("INSERT INTO exams (course_id, title, date) VALUES (?, ?, ?)")
+        .bind(id)
+        .bind(&form.title)
+        .bind(&form.date)
+        .execute(&mut **db)
+        .await
+        .unwrap()
+        .last_insert_rowid();
+
+    let exam = Exam {
+        id: exam_id,
+        course_id: id,
+        title: form.title.clone(),
+        date: form.date.clone(),
+    };
+
+    let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
+        .bind(id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    ExamItemTemplate { exam, categories, user: Some(user) }
+}
+
+#[get("/exams/<id>")]
+async fn get_exam(mut db: Connection<Db>, user: AuthUser, id: i64) -> ExamItemTemplate {
+    let exam = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE id = ?")
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
+
+    let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
+        .bind(exam.course_id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    ExamItemTemplate { exam, categories, user: Some(user) }
+}
+
+#[get("/exams/<id>/edit")]
+async fn get_edit_exam(mut db: Connection<Db>, user: AuthUser, id: i64) -> ExamItemEditTemplate {
+    let exam = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE id = ?")
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
+    ExamItemEditTemplate { exam, user: Some(user) }
+}
+
+#[post("/exams/<id>", data = "<form>")]
+async fn update_exam(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form<UpdateExam>) -> ExamItemTemplate {
+    sqlx::query("UPDATE exams SET title = ?, date = ? WHERE id = ?")
+        .bind(&form.title)
+        .bind(&form.date)
+        .bind(id)
+        .execute(&mut **db)
+        .await
+        .unwrap();
+
+    let exam = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE id = ?")
+        .bind(id)
+        .fetch_one(&mut **db)
+        .await
+        .unwrap();
+
+    let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
+        .bind(exam.course_id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    ExamItemTemplate { exam, categories, user: Some(user) }
+}
+
+#[delete("/exams/<id>")]
+async fn delete_exam(mut db: Connection<Db>, _user: AuthUser, id: i64) -> String {
+    // Cascade delete: problem_categories -> problems -> exam
+    let problems = sqlx::query("SELECT id FROM problems WHERE exam_id = ?")
+        .bind(id)
+        .fetch_all(&mut **db)
+        .await
+        .unwrap_or_default();
+
+    for problem in problems {
+        let problem_id: i64 = problem.try_get("id").unwrap();
+        sqlx::query("DELETE FROM problem_categories WHERE problem_id = ?")
+            .bind(problem_id)
+            .execute(&mut **db)
+            .await
+            .unwrap();
+    }
+
+    sqlx::query("DELETE FROM problems WHERE exam_id = ?")
+        .bind(id)
+        .execute(&mut **db)
+        .await
+        .unwrap();
+
+    sqlx::query("DELETE FROM exams WHERE id = ?")
+        .bind(id)
+        .execute(&mut **db)
+        .await
+        .unwrap();
+
+    String::new()
+}
+
+#[post("/exams/<id>/problems", data = "<form>")]
+async fn create_exam_problem(mut db: Connection<Db>, user: AuthUser, id: i64, mut form: Form<NewProblem<'_>>) -> ProblemRowTemplate {
+    let file_name = format!("{}.png", Uuid::new_v4());
+    let file_path = format!("uploads/{}", file_name);
+    form.screenshot.move_copy_to(&file_path).await.expect("Unable to move or copy file");
+    let image_url = format!("/uploads/{}", file_name);
+
+    let description = "Screenshot Problem";
+    let is_incorrect: bool = form.is_incorrect.as_deref() == Some("on");
+
+    let problem_id = sqlx::query("INSERT INTO problems (exam_id, description, notes, image_url, solution_link, is_incorrect) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(id)
+        .bind(description)
+        .bind(&form.notes)
+        .bind(&image_url)
+        .bind(&form.solution_link)
+        .bind(is_incorrect)
+        .execute(&mut **db)
+        .await
+        .unwrap()
+        .last_insert_rowid();
+
+    let mut category_names = String::new();
+    if let Some(cats) = &form.categories {
+        let exam = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE id = ?")
+            .bind(id)
+            .fetch_one(&mut **db)
+            .await
+            .unwrap();
+
+        let mut processed_cats = Vec::new();
+        for cat_name in cats.split(|c| c == ',' || c == '\u{3001}').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            let cat_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE course_id = ? AND name = ?")
+                .bind(exam.course_id)
+                .bind(cat_name)
+                .fetch_optional(&mut **db)
+                .await
+                .unwrap();
+
+            let cat_id = match cat_id_opt {
+                Some(cid) => cid,
+                None => {
+                    sqlx::query("INSERT INTO categories (course_id, name) VALUES (?, ?)")
+                        .bind(exam.course_id)
+                        .bind(cat_name)
+                        .execute(&mut **db)
+                        .await
+                        .unwrap()
+                        .last_insert_rowid()
+                }
+            };
+
+            sqlx::query("INSERT INTO problem_categories (problem_id, category_id) VALUES (?, ?)")
+                .bind(problem_id)
+                .bind(cat_id)
+                .execute(&mut **db)
+                .await
+                .unwrap();
+
+            processed_cats.push(cat_name);
+        }
+        category_names = processed_cats.join(",");
+    }
+
+    let problem = ProblemWithCategories {
+        id: problem_id,
+        log_item_id: None,
+        exam_id: Some(id),
+        description: description.to_string(),
+        notes: form.notes.clone(),
+        image_url: Some(image_url),
+        solution_link: form.solution_link.clone(),
+        is_incorrect,
+        category_names: if category_names.is_empty() { None } else { Some(category_names) },
+        source_kind: "Exam".to_string(),
+        source_title: "".to_string(),
+    };
+
+    ProblemRowTemplate { problem, user: Some(user) }
+}
+
+#[get("/exams/<id>/problems")]
+async fn get_exam_problems(mut db: Connection<Db>, _user: AuthUser, id: i64) -> String {
+    let problems = sqlx::query_as::<_, ProblemWithCategories>(
+        r#"
+        SELECT
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+            GROUP_CONCAT(c.name) as category_names,
+            COALESCE(l.kind, 'Exam') as source_kind,
+            COALESCE(l.title, e.title, '') as source_title
+        FROM problems p
+        LEFT JOIN log_items l ON p.log_item_id = l.id
+        LEFT JOIN exams e ON p.exam_id = e.id
+        LEFT JOIN problem_categories pc ON p.id = pc.problem_id
+        LEFT JOIN categories c ON pc.category_id = c.id
+        WHERE p.exam_id = ?
+        GROUP BY p.id
+        "#
+    )
+    .bind(id)
+    .fetch_all(&mut **db)
+    .await
+    .unwrap_or_default();
+
+    let mut html = String::new();
+    for p in problems {
+        let t = ProblemRowTemplate { problem: p, user: None };
+        html.push_str(&t.render().unwrap());
+    }
+    html
+}
+
 pub fn routes() -> Vec<rocket::Route> {
     routes![
-        index, 
+        index,
         dashboard,
         get_login,
         post_login,
         get_register,
         post_register,
         logout,
-        create_semester, 
-        view_semester, 
-        create_course, 
-        view_course_log, 
+        create_semester,
+        view_semester,
+        create_course,
+        view_course_log,
         create_log_item,
         create_problem,
         get_log_problems,
@@ -877,6 +1149,14 @@ pub fn routes() -> Vec<rocket::Route> {
         update_log_item,
         get_edit_problem,
         update_problem,
-        get_problem_row
+        get_problem_row,
+        view_course_exams,
+        create_exam,
+        get_exam,
+        get_edit_exam,
+        update_exam,
+        delete_exam,
+        create_exam_problem,
+        get_exam_problems
     ]
 }

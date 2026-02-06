@@ -29,6 +29,8 @@
             class="px-4 py-2 text-sm font-medium text-industrial-400 hover:text-white hover:border-industrial-600 transition-colors">记录</a>
         <a href="/courses/{{ course.id }}/study"
             class="px-4 py-2 text-sm font-medium text-white border-b-2 border-industrial-400">错题本</a>
+        <a href="/courses/{{ course.id }}/exams"
+            class="px-4 py-2 text-sm font-medium text-industrial-400 hover:text-white hover:border-industrial-600 transition-colors">考卷</a>
     </div>
 </div>
 
@@ -38,6 +40,15 @@
         <h2 class="text-lg font-bold mb-4 text-industrial-100 uppercase tracking-wide">筛选</h2>
         <form hx-get="/courses/{{ course.id }}/study/problems" hx-target="#study-list" hx-trigger="change"
             class="space-y-6">
+
+            <div>
+                <label class="flex items-center space-x-2 text-sm text-industrial-300">
+                    <input type="checkbox" name="incorrect" value="on"
+                        class="rounded bg-industrial-800 border-industrial-600">
+                    <span class="font-bold text-red-400">仅错题</span>
+                </label>
+            </div>
+
             <div>
                 <h3 class="text-sm font-bold text-industrial-400 mb-2 uppercase tracking-wider">来源</h3>
                 <div class="space-y-2">
@@ -60,6 +71,11 @@
                         <input type="checkbox" name="source" value="Lab"
                             class="rounded bg-industrial-800 border-industrial-600">
                         <span>实验</span>
+                    </label>
+                    <label class="flex items-center space-x-2 text-sm text-industrial-300">
+                        <input type="checkbox" name="source" value="Exam"
+                            class="rounded bg-industrial-800 border-industrial-600">
+                        <span>考卷</span>
                     </label>
                 </div>
             </div>

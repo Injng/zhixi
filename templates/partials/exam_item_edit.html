@@ -1,0 +1,16 @@
+<div class="glass-panel p-6 rounded-lg border border-teal-600" hx-target="this" hx-swap="outerHTML">
+    <form hx-post="/exams/{{ exam.id }}" class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-industrial-400 mb-1">标题</label>
+            <input type="text" name="title" value="{{ exam.title }}" class="input-field rounded" required>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-industrial-400 mb-1">日期</label>
+            <input type="date" name="date" value="{% if let Some(date) = exam.date %}{{ date }}{% endif %}" class="input-field rounded">
+        </div>
+        <div class="flex justify-end space-x-3">
+            <button type="button" hx-get="/exams/{{ exam.id }}" class="px-3 py-2 border border-industrial-600 rounded-md text-sm font-medium text-industrial-400 hover:bg-industrial-800">取消</button>
+            <button type="submit" class="btn-primary rounded text-sm font-medium">保存更改</button>
+        </div>
+    </form>
+</div>

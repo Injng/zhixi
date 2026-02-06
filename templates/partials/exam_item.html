@@ -1,40 +1,14 @@
-<div class="glass-panel p-6 rounded-lg border-l-4 
-    {% if item.kind == "Lecture" %}border-l-blue-500 {% else if item.kind=="Discussion" %}border-l-emerald-500 {% else
-    if item.kind=="Lab" %}border-l-purple-500 {% else if item.kind=="Homework" %}border-l-orange-500 {% else if
-    item.kind=="Midterm" %}border-l-red-500 {% else if item.kind=="Quiz" %}border-l-yellow-500 {% else
-    %}border-l-gray-500{% endif %}">
+<div class="glass-panel p-6 rounded-lg border-l-4 border-l-teal-500">
     <div class="flex justify-between items-start mb-2">
         <div>
             <div class="text-xs font-bold uppercase tracking-wider mb-1">
-                <span class="{% if item.kind == "Lecture" %}text-blue-400 {% else if item.kind=="Discussion"
-                    %}text-emerald-400 {% else if item.kind=="Lab" %}text-purple-400 {% else if item.kind=="Homework"
-                    %}text-orange-400 {% else if item.kind=="Midterm" %}text-red-400 {% else if item.kind=="Quiz"
-                    %}text-yellow-400 {% else %}text-gray-400{% endif %}">
-                    {% if item.kind == "Lecture" %}讲座
-                    {% else if item.kind == "Discussion" %}讨论
-                    {% else if item.kind == "Lab" %}实验
-                    {% else if item.kind == "Homework" %}作业
-                    {% else if item.kind == "Midterm" %}期中
-                    {% else if item.kind == "Quiz" %}测验
-                    {% else %}其他{% endif %}
-                </span>
-                <span class="text-industrial-400"> • {% if let Some(date) = item.date %}{{ date }}{% endif %}</span>
+                <span class="text-teal-400">考卷</span>
+                <span class="text-industrial-400"> • {% if let Some(date) = exam.date %}{{ date }}{% endif %}</span>
             </div>
-            <h3 class="text-xl font-bold text-white">{{ item.title }}</h3>
+            <h3 class="text-xl font-bold text-white">{{ exam.title }}</h3>
         </div>
         <div class="flex items-center space-x-2">
-            {% if let Some(link) = item.link %}
-            {% if !link.is_empty() %}
-            <a href="{{ link }}" target="_blank" class="text-industrial-400 hover:text-white">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                        d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                    <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                </svg>
-            </a>
-            {% endif %}
-            {% endif %}
-            <button hx-get="/logs/{{ item.id }}/edit" hx-target="closest .glass-panel" hx-swap="outerHTML"
+            <button hx-get="/exams/{{ exam.id }}/edit" hx-target="closest .glass-panel" hx-swap="outerHTML"
                 class="text-industrial-400 hover:text-white transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
@@ -42,7 +16,7 @@
                         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
             </button>
-            <button hx-delete="/logs/{{ item.id }}" hx-confirm="确定要删除这条记录吗？"
+            <button hx-delete="/exams/{{ exam.id }}" hx-confirm="确定要删除这份考卷吗？"
                 hx-target="closest .glass-panel" hx-swap="outerHTML"
                 class="text-industrial-400 hover:text-red-500 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
@@ -54,25 +28,21 @@
         </div>
     </div>
 
-    {% if let Some(desc) = item.description %}
-    <p class="text-industrial-300 mb-4">{{ desc }}</p>
-    {% endif %}
-
     <!-- Problems Section -->
     <div class="mt-4 pt-4 border-t border-industrial-700/50">
         <div class="flex justify-between items-center mb-2">
             <h4 class="text-sm font-bold text-industrial-400 uppercase tracking-wide">习题</h4>
-            <button onclick="document.getElementById('problem-form-{{ item.id }}').classList.toggle('hidden')"
+            <button onclick="document.getElementById('problem-form-exam-{{ exam.id }}').classList.toggle('hidden')"
                 class="text-xs text-industrial-500 hover:text-white underline">
                 添加习题
             </button>
         </div>
 
         <!-- Add Problem Form (Hidden by default) -->
-        <div id="problem-form-{{ item.id }}"
+        <div id="problem-form-exam-{{ exam.id }}"
             class="hidden mt-4 bg-industrial-900/50 p-4 rounded-lg border border-industrial-700">
-            <form hx-post="/logs/{{ item.id }}/problems" hx-encoding="multipart/form-data"
-                hx-target="#problems-{{ item.id }}" hx-swap="beforeend" class="space-y-3">
+            <form hx-post="/exams/{{ exam.id }}/problems" hx-encoding="multipart/form-data"
+                hx-target="#problems-exam-{{ exam.id }}" hx-swap="beforeend" class="space-y-3">
                 <div>
                     <label class="block text-sm font-medium text-industrial-400 mb-1">截图</label>
                     <input type="file" name="screenshot" accept="image/*" required
@@ -88,8 +58,8 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-industrial-400 mb-1">分类</label>
-                    <input type="text" name="categories" list="categories-{{ item.id }}" class="input-field rounded" placeholder="可用逗号或顿号分隔多个分类">
-                    <datalist id="categories-{{ item.id }}">
+                    <input type="text" name="categories" list="categories-exam-{{ exam.id }}" class="input-field rounded" placeholder="可用逗号或顿号分隔多个分类">
+                    <datalist id="categories-exam-{{ exam.id }}">
                         {% for cat in categories %}
                         <option value="{{ cat.name }}">
                             {% endfor %}
@@ -104,13 +74,13 @@
                 </div>
                 <div class="flex justify-end space-x-3">
                     <button type="button"
-                        onclick="document.getElementById('problem-form-{{ item.id }}').classList.add('hidden')"
+                        onclick="document.getElementById('problem-form-exam-{{ exam.id }}').classList.add('hidden')"
                             class="px-3 py-2 border border-industrial-600 rounded-md text-sm font-medium text-industrial-400 hover:bg-industrial-800">取消</button>
                     <button type="submit" class="btn-primary rounded text-sm font-medium">保存</button>
                 </div>
             </form>
         </div>
-        <div id="problems-{{ item.id }}" class="space-y-2" hx-get="/logs/{{ item.id }}/problems" hx-trigger="load">
+        <div id="problems-exam-{{ exam.id }}" class="space-y-2" hx-get="/exams/{{ exam.id }}/problems" hx-trigger="load">
             <!-- Problems will be loaded here -->
         </div>
     </div>

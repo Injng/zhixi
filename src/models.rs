@@ -40,13 +40,24 @@ pub struct Category {
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
 #[serde(crate = "rocket::serde")]
+pub struct Exam {
+    pub id: i64,
+    pub course_id: i64,
+    pub title: String,
+    pub date: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
 pub struct Problem {
     pub id: i64,
-    pub log_item_id: i64,
+    pub log_item_id: Option<i64>,
+    pub exam_id: Option<i64>,
     pub description: String,
     pub notes: Option<String>,
     pub image_url: Option<String>,
     pub solution_link: Option<String>,
+    pub is_incorrect: bool,
 }
 
 // Helper struct for joining problems with their categories
@@ -54,11 +65,13 @@ pub struct Problem {
 #[serde(crate = "rocket::serde")]
 pub struct ProblemWithCategories {
     pub id: i64,
-    pub log_item_id: i64,
+    pub log_item_id: Option<i64>,
+    pub exam_id: Option<i64>,
     pub description: String,
     pub notes: Option<String>,
     pub image_url: Option<String>,
     pub solution_link: Option<String>,
+    pub is_incorrect: bool,
     pub category_names: Option<String>, // Comma separated list from group_concat
     pub source_kind: String, // From joined log_item
     pub source_title: String, // From joined log_item

@@ -1,16 +1,22 @@
 {% for problem in problems %}
 <div class="glass-panel p-6 rounded-lg border-l-4 border-l-industrial-500">
     <div class="flex justify-between items-start mb-4">
-        <span class="text-xs font-bold uppercase tracking-wider text-industrial-400">
-            {% if problem.source_kind == "Lecture" %}讲座
-            {% else if problem.source_kind == "Discussion" %}讨论
-            {% else if problem.source_kind == "Lab" %}实验
-            {% else if problem.source_kind == "Homework" %}作业
-            {% else if problem.source_kind == "Midterm" %}期中
-            {% else if problem.source_kind == "Quiz" %}测验
-            {% else %}其他{% endif %}
-            • {{ problem.source_title }}
-        </span>
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-industrial-400">
+                {% if problem.source_kind == "Lecture" %}讲座
+                {% else if problem.source_kind == "Discussion" %}讨论
+                {% else if problem.source_kind == "Lab" %}实验
+                {% else if problem.source_kind == "Homework" %}作业
+                {% else if problem.source_kind == "Midterm" %}期中
+                {% else if problem.source_kind == "Quiz" %}测验
+                {% else if problem.source_kind == "Exam" %}考卷
+                {% else %}其他{% endif %}
+                • {{ problem.source_title }}
+            </span>
+            {% if problem.is_incorrect %}
+            <span class="text-[10px] px-1.5 py-0.5 bg-red-900/50 text-red-400 rounded border border-red-800 font-bold uppercase tracking-wider">错题</span>
+            {% endif %}
+        </div>
         {% if let Some(cats) = problem.category_names %}
         <div class="flex gap-2">
             {% for cat in cats.split(',') %}

@@ -8,6 +8,10 @@
     </button>
 
     <div class="flex flex-col gap-2">
+        {% if problem.is_incorrect %}
+        <span class="inline-flex items-center self-start text-[10px] px-1.5 py-0.5 bg-red-900/50 text-red-400 rounded border border-red-800 font-bold uppercase tracking-wider">错题</span>
+        {% endif %}
+
         {% if let Some(url) = problem.image_url %}
         <div class="w-full">
             <img src="{{ url }}" alt="Problem Screenshot"

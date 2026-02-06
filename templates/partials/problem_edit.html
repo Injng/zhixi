@@ -12,7 +12,7 @@
                 <label class="block text-xs font-medium text-industrial-400 mb-1">笔记</label>
                 <textarea name="notes" rows="2" class="input-field rounded text-sm">{% if let Some(notes) = problem.notes %}{{ notes }}{% endif %}</textarea>
             </div>
-            
+
             <div>
                 <label class="block text-xs font-medium text-industrial-400 mb-1">解答链接</label>
                 <input type="text" name="solution_link" value="{% if let Some(link) = problem.solution_link %}{{ link }}{% endif %}" class="input-field rounded text-sm">
@@ -20,7 +20,15 @@
 
             <div>
                 <label class="block text-xs font-medium text-industrial-400 mb-1">分类</label>
-                <input type="text" name="categories" value="{% if let Some(cats) = problem.category_names %}{{ cats }}{% endif %}" list="categories-{{ problem.log_item_id }}" class="input-field rounded text-sm">
+                <input type="text" name="categories" value="{% if let Some(cats) = problem.category_names %}{{ cats }}{% endif %}" class="input-field rounded text-sm">
+            </div>
+
+            <div>
+                <label class="flex items-center space-x-2 text-sm text-industrial-300">
+                    <input type="checkbox" name="is_incorrect" value="on" {% if problem.is_incorrect %}checked{% endif %}
+                        class="rounded bg-industrial-800 border-industrial-600">
+                    <span class="text-red-400 font-medium">标记为错题</span>
+                </label>
             </div>
 
             <div class="flex justify-end space-x-2 mt-2">
