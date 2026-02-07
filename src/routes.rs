@@ -234,13 +234,13 @@ struct RegisterUser {
 #[derive(FromForm)]
 struct NewExam {
     title: String,
-    date: Option<String>,
+    semester: Option<String>,
 }
 
 #[derive(FromForm)]
 struct UpdateExam {
     title: String,
-    date: Option<String>,
+    semester: Option<String>,
 }
 
 #[derive(FromForm)]
@@ -949,7 +949,7 @@ async fn view_course_exams(mut db: Connection<Db>, user: AuthUser, id: i64) -> C
         .await
         .unwrap_or_default();
 
-    let exams = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE course_id = ? ORDER BY date DESC, id DESC")
+    let exams = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE course_id = ? ORDER BY id DESC")
         .bind(id)
         .fetch_all(&mut **db)
         .await
@@ -966,10 +966,10 @@ async fn view_course_exams(mut db: Connection<Db>, user: AuthUser, id: i64) -> C
 
 #[post("/courses/<id>/exams", data = "<form>")]
 async fn create_exam(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form<NewExam>) -> ExamItemTemplate {
-    let exam_id = sqlx::query("INSERT INTO exams (course_id, title, date) VALUES (?, ?, ?)")
+    let exam_id = sqlx::query("INSERT INTO exams (course_id, title, semester) VALUES (?, ?, ?)")
         .bind(id)
         .bind(&form.title)
-        .bind(&form.date)
+        .bind(&form.semester)
         .execute(&mut **db)
         .await
         .unwrap()
@@ -979,7 +979,7 @@ async fn create_exam(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form
         id: exam_id,
         course_id: id,
         title: form.title.clone(),
-        date: form.date.clone(),
+        semester: form.semester.clone(),
     };
 
     let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
@@ -1020,9 +1020,9 @@ async fn get_edit_exam(mut db: Connection<Db>, user: AuthUser, id: i64) -> ExamI
 
 #[post("/exams/<id>", data = "<form>")]
 async fn update_exam(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form<UpdateExam>) -> ExamItemTemplate {
-    sqlx::query("UPDATE exams SET title = ?, date = ? WHERE id = ?")
+    sqlx::query("UPDATE exams SET title = ?, semester = ? WHERE id = ?")
         .bind(&form.title)
-        .bind(&form.date)
+        .bind(&form.semester)
         .bind(id)
         .execute(&mut **db)
         .await

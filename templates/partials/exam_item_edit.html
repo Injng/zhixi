@@ -5,8 +5,8 @@
             <input type="text" name="title" value="{{ exam.title }}" class="input-field rounded" required>
         </div>
         <div>
-            <label class="block text-sm font-medium text-industrial-400 mb-1">日期</label>
-            <input type="date" name="date" value="{% if let Some(date) = exam.date %}{{ date }}{% endif %}" class="input-field rounded">
+            <label class="block text-sm font-medium text-industrial-400 mb-1">学期</label>
+            <input type="text" name="semester" value="{% if let Some(sem) = exam.semester %}{{ sem }}{% endif %}" class="input-field rounded" placeholder="例如：Fall 2025">
         </div>
         <div class="flex justify-end space-x-3">
             <button type="button" hx-get="/exams/{{ exam.id }}" class="px-3 py-2 border border-industrial-600 rounded-md text-sm font-medium text-industrial-400 hover:bg-industrial-800">取消</button>
