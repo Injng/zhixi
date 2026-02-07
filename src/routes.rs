@@ -235,12 +235,14 @@ struct RegisterUser {
 struct NewExam {
     title: String,
     semester: Option<String>,
+    link: Option<String>,
 }
 
 #[derive(FromForm)]
 struct UpdateExam {
     title: String,
     semester: Option<String>,
+    link: Option<String>,
 }
 
 #[derive(FromForm)]
@@ -966,10 +968,11 @@ async fn view_course_exams(mut db: Connection<Db>, user: AuthUser, id: i64) -> C
 
 #[post("/courses/<id>/exams", data = "<form>")]
 async fn create_exam(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form<NewExam>) -> ExamItemTemplate {
-    let exam_id = sqlx::query("INSERT INTO exams (course_id, title, semester) VALUES (?, ?, ?)")
+    let exam_id = sqlx::query("INSERT INTO exams (course_id, title, semester, link) VALUES (?, ?, ?, ?)")
         .bind(id)
         .bind(&form.title)
         .bind(&form.semester)
+        .bind(&form.link)
         .execute(&mut **db)
         .await
         .unwrap()
@@ -980,6 +983,7 @@ async fn create_exam(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form
         course_id: id,
         title: form.title.clone(),
         semester: form.semester.clone(),
+        link: form.link.clone(),
     };
 
     let categories = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE course_id = ?")
@@ -1020,9 +1024,10 @@ async fn get_edit_exam(mut db: Connection<Db>, user: AuthUser, id: i64) -> ExamI
 
 #[post("/exams/<id>", data = "<form>")]
 async fn update_exam(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form<UpdateExam>) -> ExamItemTemplate {
-    sqlx::query("UPDATE exams SET title = ?, semester = ? WHERE id = ?")
+    sqlx::query("UPDATE exams SET title = ?, semester = ?, link = ? WHERE id = ?")
         .bind(&form.title)
         .bind(&form.semester)
+        .bind(&form.link)
         .bind(id)
         .execute(&mut **db)
         .await

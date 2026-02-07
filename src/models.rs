@@ -48,6 +48,7 @@ pub struct Exam {
     pub course_id: i64,
     pub title: String,
     pub semester: Option<String>,
+    pub link: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromRow)]

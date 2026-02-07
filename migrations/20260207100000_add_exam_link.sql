@@ -1,0 +1,1 @@
+ALTER TABLE exams ADD COLUMN link TEXT;

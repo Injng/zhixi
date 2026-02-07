@@ -8,6 +8,10 @@
             <label class="block text-sm font-medium text-industrial-400 mb-1">学期</label>
             <input type="text" name="semester" value="{% if let Some(sem) = exam.semester %}{{ sem }}{% endif %}" class="input-field rounded" placeholder="例如：Fall 2025">
         </div>
+        <div>
+            <label class="block text-sm font-medium text-industrial-400 mb-1">链接</label>
+            <input type="text" name="link" value="{% if let Some(link) = exam.link %}{{ link }}{% endif %}" class="input-field rounded" placeholder="例如：https://...">
+        </div>
         <div class="flex justify-end space-x-3">
             <button type="button" hx-get="/exams/{{ exam.id }}" class="px-3 py-2 border border-industrial-600 rounded-md text-sm font-medium text-industrial-400 hover:bg-industrial-800">取消</button>
             <button type="submit" class="btn-primary rounded text-sm font-medium">保存更改</button>

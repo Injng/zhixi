@@ -5,7 +5,11 @@
                 <span class="text-teal-400">考卷</span>
                 {% if let Some(sem) = exam.semester %}<span class="text-industrial-400"> • {{ sem }}</span>{% endif %}
             </div>
+            {% if let Some(link) = exam.link %}
+            <h3 class="text-xl font-bold"><a href="{{ link }}" target="_blank" class="text-teal-300 hover:text-teal-200 underline underline-offset-2 decoration-teal-500/40">{{ exam.title }}</a></h3>
+            {% else %}
             <h3 class="text-xl font-bold text-white">{{ exam.title }}</h3>
+            {% endif %}
         </div>
         <div class="flex items-center space-x-2">
             <button hx-get="/exams/{{ exam.id }}/edit" hx-target="closest .glass-panel" hx-swap="outerHTML"
