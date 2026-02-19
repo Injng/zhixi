@@ -208,7 +208,6 @@ struct NewProblem<'r> {
     notes: Option<String>,
     categories: Option<String>, // Comma separated
     solution_link: Option<String>,
-    is_incorrect: Option<String>,
 }
 
 #[derive(FromForm)]
@@ -216,7 +215,6 @@ struct UpdateProblem {
     notes: Option<String>,
     solution_link: Option<String>,
     categories: Option<String>,
-    is_incorrect: Option<String>,
 }
 
 #[derive(FromForm)]
@@ -255,7 +253,7 @@ struct CourseSettings {
 // Shared query for fetching a problem with categories
 const PROBLEM_WITH_CATEGORIES_QUERY: &str = r#"
     SELECT
-        p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+        p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link,
         GROUP_CONCAT(c.name) as category_names,
         COALESCE(l.kind, 'Exam') as source_kind,
         COALESCE(l.title, e.title, '') as source_title
@@ -615,15 +613,13 @@ async fn create_problem(mut db: Connection<Db>, user: AuthUser, id: i64, mut for
     let image_url = format!("/uploads/{}", file_name);
 
     let description = "Screenshot Problem";
-    let is_incorrect: bool = form.is_incorrect.as_deref() == Some("on");
 
-    let problem_id = sqlx::query("INSERT INTO problems (log_item_id, description, notes, image_url, solution_link, is_incorrect) VALUES (?, ?, ?, ?, ?, ?)")
+    let problem_id = sqlx::query("INSERT INTO problems (log_item_id, description, notes, image_url, solution_link, is_incorrect) VALUES (?, ?, ?, ?, ?, 1)")
         .bind(id)
         .bind(description)
         .bind(&form.notes)
         .bind(&image_url)
         .bind(&form.solution_link)
-        .bind(is_incorrect)
         .execute(&mut **db)
         .await
         .unwrap()
@@ -679,7 +675,6 @@ async fn create_problem(mut db: Connection<Db>, user: AuthUser, id: i64, mut for
         notes: form.notes.clone(),
         image_url: Some(image_url),
         solution_link: form.solution_link.clone(),
-        is_incorrect,
         category_names: if category_names.is_empty() { None } else { Some(category_names) },
         source_kind: "".to_string(),
         source_title: "".to_string(),
@@ -693,7 +688,7 @@ async fn get_log_problems(mut db: Connection<Db>, _user: AuthUser, id: i64) -> S
     let problems = sqlx::query_as::<_, ProblemWithCategories>(
         r#"
         SELECT
-            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link,
             GROUP_CONCAT(c.name) as category_names,
             COALESCE(l.kind, 'Exam') as source_kind,
             COALESCE(l.title, e.title, '') as source_title
@@ -748,12 +743,12 @@ async fn view_course_study(mut db: Connection<Db>, user: AuthUser, id: i64) -> C
     CourseStudyTemplate { course, courses, categories, semester, user: Some(user) }
 }
 
-#[get("/courses/<id>/study/problems?<source>&<category>&<incorrect>")]
-async fn filter_study_problems(mut db: Connection<Db>, _user: AuthUser, id: i64, source: Option<Vec<String>>, category: Option<Vec<String>>, incorrect: Option<String>) -> StudyProblemListTemplate {
+#[get("/courses/<id>/study/problems?<source>&<category>")]
+async fn filter_study_problems(mut db: Connection<Db>, _user: AuthUser, id: i64, source: Option<Vec<String>>, category: Option<Vec<String>>) -> StudyProblemListTemplate {
     let mut query = String::from(
         r#"
         SELECT
-            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link,
             GROUP_CONCAT(c.name) as category_names,
             COALESCE(l.kind, 'Exam') as source_kind,
             COALESCE(l.title, e.title, '') as source_title
@@ -765,11 +760,6 @@ async fn filter_study_problems(mut db: Connection<Db>, _user: AuthUser, id: i64,
         WHERE (l.course_id = ? OR e.course_id = ?)
         "#
     );
-
-    // Filter by incorrect only
-    if incorrect.as_deref() == Some("on") {
-        query.push_str(" AND p.is_incorrect = 1");
-    }
 
     // Filter by Source
     if let Some(sources) = &source {
@@ -845,12 +835,9 @@ async fn get_problem_row(mut db: Connection<Db>, user: AuthUser, id: i64) -> Pro
 
 #[post("/problems/<id>", data = "<form>")]
 async fn update_problem(mut db: Connection<Db>, user: AuthUser, id: i64, form: Form<UpdateProblem>) -> ProblemRowTemplate {
-    let is_incorrect: bool = form.is_incorrect.as_deref() == Some("on");
-
-    sqlx::query("UPDATE problems SET notes = ?, solution_link = ?, is_incorrect = ? WHERE id = ?")
+    sqlx::query("UPDATE problems SET notes = ?, solution_link = ? WHERE id = ?")
         .bind(&form.notes)
         .bind(&form.solution_link)
-        .bind(is_incorrect)
         .bind(id)
         .execute(&mut **db)
         .await
@@ -927,6 +914,23 @@ async fn update_problem(mut db: Connection<Db>, user: AuthUser, id: i64, form: F
         .unwrap();
 
     ProblemRowTemplate { problem, user: Some(user) }
+}
+
+#[delete("/problems/<id>")]
+async fn delete_problem(mut db: Connection<Db>, _user: AuthUser, id: i64) -> String {
+    sqlx::query("DELETE FROM problem_categories WHERE problem_id = ?")
+        .bind(id)
+        .execute(&mut **db)
+        .await
+        .unwrap();
+
+    sqlx::query("DELETE FROM problems WHERE id = ?")
+        .bind(id)
+        .execute(&mut **db)
+        .await
+        .unwrap();
+
+    String::new()
 }
 
 // ========== Exam Routes ==========
@@ -1089,15 +1093,13 @@ async fn create_exam_problem(mut db: Connection<Db>, user: AuthUser, id: i64, mu
     let image_url = format!("/uploads/{}", file_name);
 
     let description = "Screenshot Problem";
-    let is_incorrect: bool = form.is_incorrect.as_deref() == Some("on");
 
-    let problem_id = sqlx::query("INSERT INTO problems (exam_id, description, notes, image_url, solution_link, is_incorrect) VALUES (?, ?, ?, ?, ?, ?)")
+    let problem_id = sqlx::query("INSERT INTO problems (exam_id, description, notes, image_url, solution_link, is_incorrect) VALUES (?, ?, ?, ?, ?, 1)")
         .bind(id)
         .bind(description)
         .bind(&form.notes)
         .bind(&image_url)
         .bind(&form.solution_link)
-        .bind(is_incorrect)
         .execute(&mut **db)
         .await
         .unwrap()
@@ -1153,7 +1155,6 @@ async fn create_exam_problem(mut db: Connection<Db>, user: AuthUser, id: i64, mu
         notes: form.notes.clone(),
         image_url: Some(image_url),
         solution_link: form.solution_link.clone(),
-        is_incorrect,
         category_names: if category_names.is_empty() { None } else { Some(category_names) },
         source_kind: "Exam".to_string(),
         source_title: "".to_string(),
@@ -1167,7 +1168,7 @@ async fn get_exam_problems(mut db: Connection<Db>, _user: AuthUser, id: i64) -> 
     let problems = sqlx::query_as::<_, ProblemWithCategories>(
         r#"
         SELECT
-            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link,
             GROUP_CONCAT(c.name) as category_names,
             COALESCE(l.kind, 'Exam') as source_kind,
             COALESCE(l.title, e.title, '') as source_title
@@ -1500,7 +1501,7 @@ async fn public_course_problems(mut db: Connection<Db>, slug: String) -> Result<
     let raw_problems = sqlx::query_as::<_, ProblemWithCategories>(
         r#"
         SELECT
-            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link,
             GROUP_CONCAT(c.name) as category_names,
             COALESCE(l.kind, 'Exam') as source_kind,
             COALESCE(l.title, e.title, '') as source_title
@@ -1647,7 +1648,7 @@ async fn public_course_problems_zh(mut db: Connection<Db>, slug: String) -> Resu
     let raw_problems = sqlx::query_as::<_, ProblemWithCategories>(
         r#"
         SELECT
-            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link, p.is_incorrect,
+            p.id, p.log_item_id, p.exam_id, p.description, p.notes, p.image_url, p.solution_link,
             GROUP_CONCAT(c.name) as category_names,
             COALESCE(l.kind, 'Exam') as source_kind,
             COALESCE(l.title, e.title, '') as source_title
@@ -1731,6 +1732,7 @@ pub fn routes() -> Vec<rocket::Route> {
         get_edit_problem,
         update_problem,
         get_problem_row,
+        delete_problem,
         view_course_exams,
         create_exam,
         get_exam,

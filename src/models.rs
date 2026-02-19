@@ -75,7 +75,6 @@ pub struct ProblemWithCategories {
     pub notes: Option<String>,
     pub image_url: Option<String>,
     pub solution_link: Option<String>,
-    pub is_incorrect: bool,
     pub category_names: Option<String>, // Comma separated list from group_concat
     pub source_kind: String, // From joined log_item
     pub source_title: String, // From joined log_item

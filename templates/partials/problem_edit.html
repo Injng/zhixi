@@ -23,14 +23,6 @@
                 <input type="text" name="categories" value="{% if let Some(cats) = problem.category_names %}{{ cats }}{% endif %}" class="input-field rounded text-sm">
             </div>
 
-            <div>
-                <label class="flex items-center space-x-2 text-sm text-industrial-300">
-                    <input type="checkbox" name="is_incorrect" value="on" {% if problem.is_incorrect %}checked{% endif %}
-                        class="rounded bg-industrial-800 border-industrial-600">
-                    <span class="text-red-400 font-medium">标记为错题</span>
-                </label>
-            </div>
-
             <div class="flex justify-end space-x-2 mt-2">
                 <button type="button" hx-get="/problems/{{ problem.id }}" hx-target="closest .bg-industrial-900\/50" hx-swap="outerHTML"
                     class="px-2 py-1 text-xs border border-industrial-600 rounded text-industrial-400 hover:bg-industrial-800">
